@@ -41,10 +41,27 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
         photoURL: data.photoURL || firebaseUser.photoURL,
       };
     }
+    // إذا كان الخطأ 503 (Service Unavailable)، يعني Firebase Admin غير مهيأ
+    // لكن المستخدم موجود في Firebase Client، لذا نعيد بياناته من Firebase Client
+    if (response.status === 503) {
+      console.warn("Firebase Admin not initialized, using client-side user data");
+      return {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+        photoURL: firebaseUser.photoURL || undefined,
+      };
+    }
     return null;
   } catch (error) {
     console.error("Error verifying user:", error);
-    return null;
+    // في حالة الخطأ، نعيد بيانات المستخدم من Firebase Client
+    return {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || "",
+      name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+      photoURL: firebaseUser.photoURL || undefined,
+    };
   }
 };
 
