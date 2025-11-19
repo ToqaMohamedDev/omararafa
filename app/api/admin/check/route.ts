@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminAuth, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 const ADMIN_EMAIL = "dzggghjg@gmail.com";
 
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
+
     const { idToken } = await request.json();
 
     if (!idToken) {

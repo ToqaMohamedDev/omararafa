@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminFirestore } from "@/lib/firebase-admin";
+import { adminAuth, adminFirestore, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
+
     const { idToken, email, password } = await request.json();
 
     // إذا كان هناك idToken (من Google أو Firebase Auth)

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // GET - جلب جميع الفيديوهات
 export async function GET(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const videosSnapshot = await adminFirestore.collection("videos").orderBy("createdAt", "desc").get();
     
     // جلب جميع التصنيفات
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 // POST - إضافة فيديو جديد
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { idToken, title, videoUrl, thumbnailUrl, description, category, level } = await request.json();
 
     if (!idToken) {

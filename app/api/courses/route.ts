@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // GET - جلب جميع الدورات
 export async function GET(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const coursesSnapshot = await adminFirestore.collection("courses").orderBy("createdAt", "desc").get();
     
     // جلب جميع التصنيفات
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 // POST - إضافة دورة جديدة
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { idToken, title, description, videoUrl, thumbnailUrl, duration, level, instructor, category } = await request.json();
 
     if (!idToken) {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // GET - جلب جميع التصنيفات
 export async function GET(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const categoriesSnapshot = await adminFirestore.collection("categories").orderBy("name").get();
     const categories = categoriesSnapshot.docs.map((doc: any) => ({
       id: doc.id,
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
 // POST - إضافة تصنيف جديد
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { idToken, name } = await request.json();
 
     if (!idToken) {

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { userId, testId, score, answers, percentage } = await request.json();
 
     if (!userId || !testId || score === undefined) {
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 

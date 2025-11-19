@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { uid: string } }
 ) {
   try {
+    checkFirebaseAdmin();
     const { uid } = params;
 
     const userDoc = await adminFirestore.collection("users").doc(uid).get();
@@ -35,6 +36,7 @@ export async function PUT(
   { params }: { params: { uid: string } }
 ) {
   try {
+    checkFirebaseAdmin();
     const { uid } = params;
     const data = await request.json();
 

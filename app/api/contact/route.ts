@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { name, email, phone, subject, message } = await request.json();
 
     if (!name || !email || !message) {

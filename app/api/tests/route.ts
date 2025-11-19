@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function GET(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const testsSnapshot = await adminFirestore.collection("tests").get();
     const tests = testsSnapshot.docs.map((doc: any) => ({
       id: doc.id,
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    checkFirebaseAdmin();
     const { idToken, ...testData } = await request.json();
 
     if (!idToken) {

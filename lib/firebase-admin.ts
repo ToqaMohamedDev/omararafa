@@ -1,7 +1,9 @@
 import * as firebaseAdmin from "firebase-admin";
 const admin = firebaseAdmin as any;
 
-if (!admin.apps.length) {
+let isInitialized = false;
+
+if (!admin.apps || admin.apps.length === 0) {
   try {
     // استخدام متغيرات البيئة بدلاً من ملف JSON
     const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
@@ -19,17 +21,35 @@ if (!admin.apps.length) {
           client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
         };
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as any),
-      projectId: process.env.FIREBASE_PROJECT_ID || "omrarafa-c6a94",
-    });
+    // التحقق من وجود private_key قبل التهيئة
+    if (!serviceAccount.private_key) {
+      console.warn("Firebase Admin: private_key missing. Admin features will not work.");
+    } else {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount as any),
+        projectId: process.env.FIREBASE_PROJECT_ID || "omrarafa-c6a94",
+      });
+      isInitialized = true;
+    }
   } catch (error) {
     console.error("Firebase Admin initialization error:", error);
+    isInitialized = false;
+  }
+} else {
+  isInitialized = true;
+}
+
+// تصدير القيم فقط إذا تم التهيئة بنجاح
+export const adminAuth = isInitialized && admin.auth ? admin.auth() : null;
+export const adminFirestore = isInitialized && admin.firestore ? admin.firestore() : null;
+export const FieldValue = isInitialized && admin.firestore ? admin.firestore.FieldValue : null;
+
+// دالة للتحقق من تهيئة Firebase Admin
+export function checkFirebaseAdmin() {
+  if (!isInitialized || !adminAuth || !adminFirestore) {
+    throw new Error("Firebase Admin not initialized. Please check environment variables.");
   }
 }
 
-export const adminAuth = admin.auth();
-export const adminFirestore = admin.firestore();
-export const FieldValue = admin.firestore.FieldValue;
 export default admin;
 

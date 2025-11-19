@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // PUT - تحديث اختبار
 export async function PUT(
@@ -7,6 +7,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    checkFirebaseAdmin();
     const { id } = params;
     const { idToken, ...testData } = await request.json();
 
@@ -52,6 +53,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    checkFirebaseAdmin();
     const { id } = params;
     const { idToken } = await request.json();
 
