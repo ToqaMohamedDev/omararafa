@@ -24,6 +24,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (email && password) {
+      if (!auth) {
+        setError("Firebase غير مهيأ. يرجى إعادة تحميل الصفحة.");
+        setIsLoading(false);
+        return;
+      }
       try {
         // استخدام Firebase Client SDK لتسجيل الدخول
         const { signInWithEmailAndPassword } = await import("firebase/auth");
@@ -89,6 +94,11 @@ export default function LoginPage() {
       }
 
       // محاولة استخدام popup مع timeout
+      if (!auth || !googleProvider) {
+        setError("Firebase غير مهيأ. يرجى إعادة تحميل الصفحة.");
+        setIsLoading(false);
+        return;
+      }
       const popupPromise = signInWithPopup(auth, googleProvider);
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("TIMEOUT")), 30000); // 30 ثانية timeout
@@ -176,7 +186,7 @@ export default function LoginPage() {
       y: 0,
       transition: {
         duration: 0.4,
-        ease: "easeOut",
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
   };

@@ -1,5 +1,4 @@
-import { adminFirestore, adminAuth } from "./firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, adminAuth, FieldValue } from "./firebase-admin";
 
 // Utility functions for Firebase operations
 
@@ -20,7 +19,7 @@ export async function updateUserData(uid: string, data: any) {
   try {
     await adminFirestore.collection("users").doc(uid).update({
       ...data,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     return await getUserData(uid);
   } catch (error) {
@@ -43,7 +42,7 @@ export async function saveTestResult(
       score,
       percentage,
       answers,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
     return resultRef.id;
   } catch (error) {
@@ -60,7 +59,7 @@ export async function getUserTestResults(userId: string) {
       .orderBy("createdAt", "desc")
       .get();
 
-    return resultsSnapshot.docs.map((doc) => ({
+    return resultsSnapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     }));

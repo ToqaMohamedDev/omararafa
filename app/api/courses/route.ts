@@ -9,12 +9,12 @@ export async function GET(request: NextRequest) {
     // جلب جميع التصنيفات
     const categoriesSnapshot = await adminFirestore.collection("categories").get();
     const categoriesMap = new Map();
-    categoriesSnapshot.docs.forEach((doc) => {
+    categoriesSnapshot.docs.forEach((doc: any) => {
       categoriesMap.set(doc.id, doc.data().name);
     });
 
     // إضافة اسم التصنيف لكل دورة
-    const courses = coursesSnapshot.docs.map((doc) => {
+    const courses = coursesSnapshot.docs.map((doc: any) => {
       const courseData = doc.data();
       const categoryId = courseData.category;
       return {

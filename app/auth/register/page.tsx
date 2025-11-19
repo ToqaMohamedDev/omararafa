@@ -66,6 +66,11 @@ export default function RegisterPage() {
     }
 
     if (name && email && password) {
+      if (!auth) {
+        setError("Firebase غير مهيأ. يرجى إعادة تحميل الصفحة.");
+        setIsLoading(false);
+        return;
+      }
       try {
         // استخدام Firebase Client SDK لإنشاء الحساب
         const { createUserWithEmailAndPassword } = await import("firebase/auth");
@@ -220,7 +225,7 @@ export default function RegisterPage() {
       y: 0,
       transition: {
         duration: 0.4,
-        ease: "easeOut",
+        ease: [0.4, 0, 0.2, 1] as const,
       },
     },
   };

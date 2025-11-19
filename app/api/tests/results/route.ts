@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       .orderBy("createdAt", "desc")
       .get();
 
-    const results = resultsSnapshot.docs.map((doc) => ({
+    const results = resultsSnapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     }));

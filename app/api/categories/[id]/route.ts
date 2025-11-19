@@ -40,7 +40,7 @@ export async function PUT(
       .get();
 
     const hasDuplicate = existingCategories.docs.some(
-      (doc) => doc.id !== id
+      (doc: any) => doc.id !== id
     );
 
     if (hasDuplicate) {

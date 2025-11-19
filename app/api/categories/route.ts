@@ -5,7 +5,7 @@ import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
 export async function GET(request: NextRequest) {
   try {
     const categoriesSnapshot = await adminFirestore.collection("categories").orderBy("name").get();
-    const categories = categoriesSnapshot.docs.map((doc) => ({
+    const categories = categoriesSnapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     }));

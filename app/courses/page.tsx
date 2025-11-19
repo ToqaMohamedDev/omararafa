@@ -182,7 +182,7 @@ export default function CoursesPage() {
           >
             <div className="relative overflow-hidden">
               <motion.img
-                src={course.thumbnailUrl || course.image || "https://via.placeholder.com/400x250?text=دورة"}
+                src={course.thumbnailUrl || "https://via.placeholder.com/400x250?text=دورة"}
                 alt={course.title}
                 className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-110"
               />
