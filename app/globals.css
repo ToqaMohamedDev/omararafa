@@ -1,0 +1,899 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --surface: #f8f9fa;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --surface: #1e293b;
+  --border: #334155;
+  --muted: #94a3b8;
+}
+
+* {
+  @apply scroll-smooth;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: var(--font-cairo);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .gradient-primary {
+    background: linear-gradient(to right, #FF8C42, #FF6B35);
+  }
+  
+  .gradient-soft {
+    background: linear-gradient(to bottom right, #FFF5F0, #FFE8DC);
+  }
+  
+  .dark .gradient-soft {
+    background: linear-gradient(to bottom right, #B33A15, #CC4A1F);
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+  
+  .btn-primary {
+    @apply text-white px-6 py-3 rounded-lg transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95;
+    background-color: #FF6B35;
+  }
+  
+  .btn-primary:hover {
+    background-color: #E55A2B;
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-3 rounded-lg transition-all duration-200 font-semibold;
+    background-color: white;
+    color: #FF6B35;
+    border: 2px solid #FF6B35;
+    box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  }
+  
+  .btn-secondary:hover {
+    box-shadow: 0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+  
+  .dark .btn-secondary {
+    background-color: #1F2937;
+    color: #FF6B35;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #FFF5F0;
+  }
+  
+  .dark .btn-secondary:hover {
+    background-color: #374151;
+  }
+  
+  .section-padding {
+    @apply py-16 md:py-24;
+  }
+  
+  .container-padding {
+    @apply px-4 sm:px-6 lg:px-8 xl:px-12;
+  }
+  
+  .page-padding {
+    @apply py-8 sm:py-12 md:py-16 lg:py-20;
+  }
+  
+  .section-spacing {
+    @apply mb-12 md:mb-16 lg:mb-20;
+  }
+  
+  .card-padding {
+    @apply p-6 md:p-8;
+  }
+  
+  .form-spacing {
+    @apply space-y-6 md:space-y-8;
+  }
+  
+  .text-gradient {
+    background: linear-gradient(to right, #FF6B35, #CC4A1F);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-in-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* تحسينات للخطوط */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-bold;
+  line-height: 1.2;
+}
+
+/* تحسينات للروابط */
+a {
+  @apply transition-colors duration-200;
+}
+
+/* تحسينات للأزرار */
+button {
+  @apply transition-all duration-200;
+}
+
+/* تحسينات للكروت */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 transition-all duration-300;
+  box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* تحسينات للإدخال */
+input, textarea, select {
+  @apply transition-all duration-200 focus:ring-2 focus:ring-offset-2;
+}
+
+input:focus, textarea:focus, select:focus {
+  --tw-ring-color: #FF6B35;
+}
+
+
+/* Plyr CSS - نسخة محسّنة مع إصلاح كامل لعناصر التحكم */
+@import 'plyr/dist/plyr.css';
+
+/* ========================================
+   إصلاح جذري لمشكلة عناصر التحكم المخفية
+======================================== */
+
+/* إجبار ظهور الحاوية الرئيسية */
+.plyr {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
+}
+
+/* إجبار ظهور عناصر التحكم بشكل دائم */
+.plyr__controls {
+  /* إجبار الظهور */
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  
+  /* الموقع */
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  
+  /* التصميم */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.95) 0%,
+    rgba(0, 0, 0, 0.90) 30%,
+    rgba(0, 0, 0, 0.75) 60%,
+    rgba(0, 0, 0, 0.50) 85%,
+    transparent 100%
+  ) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  
+  /* المساحة */
+  padding: 20px 24px !important;
+  min-height: 85px !important;
+  
+  /* المحاذاة */
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  
+  /* الطبقة */
+  z-index: 999999 !important;
+  
+  /* الحدود */
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  
+  /* الانتقالات */
+  transition: all 0.3s ease !important;
+}
+
+/* منع إخفاء عناصر التحكم */
+.plyr--hide-controls .plyr__controls,
+.plyr.plyr--hide-controls .plyr__controls {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0) !important;
+}
+
+/* إصلاح كل عنصر تحكم */
+.plyr__controls > *,
+.plyr__controls__item {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  flex-shrink: 0 !important;
+}
+
+/* ========================================
+   الأزرار - إصلاح شامل
+======================================== */
+.plyr__control,
+.plyr button,
+.plyr [type="button"],
+.plyr [role="button"],
+button[data-plyr] {
+  /* إجبار الظهور */
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  
+  /* التصميم */
+  background: transparent !important;
+  border: none !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  
+  /* الحجم */
+  min-width: 46px !important;
+  min-height: 46px !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 10px !important;
+  
+  /* المحاذاة */
+  align-items: center !important;
+  justify-content: center !important;
+  
+  /* التأثيرات */
+  transition: all 0.2s ease !important;
+  position: relative !important;
+  z-index: 1000000 !important;
+}
+
+.plyr__control:hover,
+.plyr button:hover {
+  background: rgba(255, 107, 53, 0.2) !important;
+  transform: scale(1.05) !important;
+}
+
+.plyr__control:active,
+.plyr button:active {
+  transform: scale(0.95) !important;
+}
+
+/* ========================================
+   الأيقونات - إصلاح كامل
+======================================== */
+.plyr__control svg,
+.plyr button svg,
+.plyr [type="button"] svg,
+svg[data-plyr] {
+  /* إجبار الظهور */
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  
+  /* الألوان */
+  fill: #ffffff !important;
+  color: #ffffff !important;
+  stroke: none !important;
+  
+  /* الحجم */
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  
+  /* التأثيرات */
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.8)) !important;
+  pointer-events: none !important;
+  position: relative !important;
+  z-index: 1000001 !important;
+}
+
+.plyr__control:hover svg,
+.plyr button:hover svg {
+  fill: #FF6B35 !important;
+  color: #FF6B35 !important;
+  filter: drop-shadow(0 2px 8px rgba(255, 107, 53, 0.6)) !important;
+}
+
+/* ========================================
+   زر التشغيل الكبير
+======================================== */
+.plyr__control--overlaid {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: transparent !important;
+  width: auto !important;
+  height: auto !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  backdrop-filter: none !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 100 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+.plyr__control--overlaid:hover {
+  transform: translate(-50%, -50%) scale(1.2) !important;
+}
+
+.plyr__control--overlaid:active {
+  transform: translate(-50%, -50%) scale(1.1) !important;
+}
+
+.plyr__control--overlaid svg {
+  width: 90px !important;
+  height: 90px !important;
+  fill: #FF6B35 !important;
+  color: #FF6B35 !important;
+  filter: drop-shadow(0 4px 16px rgba(255, 107, 53, 0.6)) !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  transform: translateX(3px) !important;
+}
+
+/* ========================================
+   شريط التقدم - إصلاح كامل
+======================================== */
+.plyr__progress {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  height: 6px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  position: relative !important;
+  overflow: visible !important;
+  transition: height 0.2s ease !important;
+}
+
+.plyr__progress:hover {
+  height: 8px !important;
+}
+
+.plyr__progress__container {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  flex: 1 !important;
+  padding: 12px 0 !important;
+  margin: 0 !important;
+  position: relative !important;
+}
+
+/* الجزء المحمل */
+.plyr__progress__buffer {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  height: 100% !important;
+  border-radius: 6px !important;
+  z-index: 1 !important;
+}
+
+/* الجزء المشغل */
+.plyr__progress__played {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: linear-gradient(90deg, #FF6B35, #FF8C42) !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  height: 100% !important;
+  border-radius: 6px !important;
+  z-index: 2 !important;
+  box-shadow: 0 0 15px rgba(255, 107, 53, 0.8) !important;
+  min-width: 3px !important;
+}
+
+/* مؤشر التقدم */
+.plyr__progress input[type="range"] {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative !important;
+  z-index: 3 !important;
+  width: 100% !important;
+  height: 6px !important;
+  cursor: pointer !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: transparent !important;
+}
+
+.plyr__progress input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background: #ffffff !important;
+  border: 3px solid #FF6B35 !important;
+  border-radius: 50% !important;
+  box-shadow: 
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 107, 53, 0.3) !important;
+  cursor: pointer !important;
+}
+
+.plyr__progress input[type="range"]::-moz-range-thumb {
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background: #ffffff !important;
+  border: 3px solid #FF6B35 !important;
+  border-radius: 50% !important;
+  box-shadow: 
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 107, 53, 0.3) !important;
+  cursor: pointer !important;
+}
+
+.plyr__progress:hover input[type="range"]::-webkit-slider-thumb,
+.plyr__progress:hover input[type="range"]::-moz-range-thumb {
+  width: 18px !important;
+  height: 18px !important;
+  box-shadow: 
+    0 3px 15px rgba(0, 0, 0, 0.6),
+    0 0 0 4px rgba(255, 107, 53, 0.4) !important;
+}
+
+/* ========================================
+   التحكم في الصوت
+======================================== */
+.plyr__volume {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  align-items: center !important;
+  gap: 8px !important;
+  max-width: 130px !important;
+}
+
+.plyr__volume input[type="range"] {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  height: 5px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 3px !important;
+  cursor: pointer !important;
+}
+
+.plyr__volume input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #FF6B35 !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+}
+
+.plyr__volume input[type="range"]::-moz-range-thumb {
+  width: 14px !important;
+  height: 14px !important;
+  background: #FF6B35 !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+}
+
+/* ========================================
+   عرض الوقت
+======================================== */
+.plyr__time {
+  display: inline-block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8) !important;
+  letter-spacing: 0.5px !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+}
+
+.plyr__time + .plyr__time::before {
+  content: " / " !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  margin: 0 4px !important;
+}
+
+/* ========================================
+   تصميم المشغل العام
+======================================== */
+.plyr {
+  --plyr-color-main: #FF6B35;
+  --plyr-video-background: #000000;
+  --plyr-control-icon-size: 24px;
+  --plyr-control-spacing: 10px;
+  
+  background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 100%) !important;
+  border-radius: 16px !important;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  overflow: hidden !important;
+}
+
+.plyr:hover {
+  box-shadow: 
+    0 25px 70px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 107, 53, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ========================================
+   الشاشة الكاملة
+======================================== */
+.plyr--fullscreen-active {
+  background: #000000 !important;
+  border-radius: 0 !important;
+}
+
+.plyr--fullscreen-active .plyr__controls {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.95) 0%,
+    rgba(0, 0, 0, 0.85) 40%,
+    rgba(0, 0, 0, 0.60) 70%,
+    transparent 100%
+  ) !important;
+  padding: 25px 35px !important;
+}
+
+/* ========================================
+   Tooltips
+======================================== */
+.plyr__tooltip {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* ========================================
+   القوائم
+======================================== */
+.plyr__menu {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(20px) !important;
+  padding: 8px !important;
+}
+
+.plyr__menu__container [role="menuitem"] {
+  border-radius: 6px !important;
+  padding: 10px 14px !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease !important;
+}
+
+.plyr__menu__container [role="menuitem"]:hover {
+  background: rgba(255, 107, 53, 0.2) !important;
+}
+
+.plyr__menu__container [role="menuitem"][aria-checked="true"] {
+  background: rgba(255, 107, 53, 0.3) !important;
+  color: #FF6B35 !important;
+}
+
+/* ========================================
+   إصلاحات خاصة بـ YouTube
+======================================== */
+.plyr__video-embed {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: auto !important;
+  overflow: hidden !important;
+}
+
+.plyr__video-embed iframe {
+  pointer-events: auto !important;
+}
+
+.plyr__video-embed .ytp-watermark,
+.plyr__video-embed .ytp-title,
+.plyr__video-embed .ytp-chrome-top,
+.plyr__video-embed .ytp-pause-overlay,
+.plyr__video-embed .ytp-youtube-button,
+.plyr__video-embed a[href*="youtube.com"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ========================================
+   Responsive Design
+======================================== */
+@media (max-width: 768px) {
+  .plyr__controls {
+    padding: 16px 18px !important;
+    min-height: 75px !important;
+    gap: 8px !important;
+  }
+  
+  .plyr__control,
+  .plyr button {
+    min-width: 42px !important;
+    min-height: 42px !important;
+    padding: 8px !important;
+  }
+  
+  .plyr__control svg,
+  .plyr button svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  
+  .plyr__time {
+    font-size: 13px !important;
+  }
+  
+  .plyr__volume {
+    max-width: 100px !important;
+  }
+  
+  .plyr__control--overlaid {
+    width: auto !important;
+    height: auto !important;
+  }
+  
+  .plyr__control--overlaid svg {
+    width: 70px !important;
+    height: 70px !important;
+    transform: translateX(2px) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .plyr__controls {
+    padding: 12px 14px !important;
+    min-height: 70px !important;
+    gap: 6px !important;
+  }
+  
+  .plyr__control,
+  .plyr button {
+    min-width: 38px !important;
+    min-height: 38px !important;
+    padding: 6px !important;
+  }
+  
+  .plyr__control svg,
+  .plyr button svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  
+  .plyr__time {
+    font-size: 12px !important;
+  }
+  
+  .plyr__volume {
+    display: none !important;
+  }
+  
+  .plyr__control--overlaid {
+    width: auto !important;
+    height: auto !important;
+  }
+  
+  .plyr__control--overlaid svg {
+    width: 60px !important;
+    height: 60px !important;
+    transform: translateX(2px) !important;
+  }
+}
+
+/* ========================================
+   حالة التحميل
+======================================== */
+.plyr--loading .plyr__control--overlaid {
+  display: none !important;
+}
+
+.plyr--loading .plyr__poster {
+  filter: brightness(0.5) blur(2px) !important;
+}
+
+/* ========================================
+   Focus States للوصولية
+======================================== */
+.plyr__control:focus-visible,
+.plyr button:focus-visible {
+  outline: 3px solid rgba(255, 107, 53, 0.5) !important;
+  outline-offset: 3px !important;
+}
+
+/* ========================================
+   تحسينات الأداء
+======================================== */
+.plyr video {
+  object-fit: contain !important;
+}
+
+.plyr,
+.plyr * {
+  will-change: auto !important;
+}
+
+/* ========================================
+   إصلاح نهائي - إجبار الظهور
+======================================== */
+.plyr [hidden],
+.plyr [style*="display: none"],
+.plyr [style*="display:none"],
+.plyr__controls [hidden],
+.plyr__controls [style*="display: none"] {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* منع أي overflow مخفي */
+.plyr,
+.plyr__controls,
+.plyr__video-wrapper {
+  overflow: visible !important;
+}
+
+/* إصلاح z-index للطبقات */
+.plyr__poster {
+  z-index: 0 !important;
+}
+
+.plyr video {
+  z-index: 0 !important;
+}
+
+.plyr__control--overlaid {
+  z-index: 100 !important;
+}
+
+.plyr__controls {
+  z-index: 999999 !important;
+}
+
+/* ========================================
+   تحسينات إضافية
+======================================== */
+.plyr__progress__container {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.plyr__controls > *:not(.plyr__progress__container) {
+  flex: 0 0 auto !important;
+}
+
+/* Prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .plyr,
+  .plyr * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .plyr__control {
+    border: 2px solid currentColor !important;
+  }
+  
+  .plyr__progress {
+    border: 1px solid currentColor !important;
+  }
+}
+
+/* ========================================
+   النهاية - كل شيء يجب أن يكون مرئياً!
+======================================== */
