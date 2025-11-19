@@ -1,8 +1,11 @@
-import { adminFirestore, adminAuth, FieldValue } from "./firebase-admin";
+import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "./firebase-admin";
 
 // Utility functions for Firebase operations
 
 export async function getUserData(uid: string) {
+  if (!checkFirebaseAdmin() || !adminFirestore) {
+    throw new Error("Firebase Admin not initialized");
+  }
   try {
     const userDoc = await adminFirestore.collection("users").doc(uid).get();
     if (!userDoc.exists) {
@@ -16,6 +19,9 @@ export async function getUserData(uid: string) {
 }
 
 export async function updateUserData(uid: string, data: any) {
+  if (!checkFirebaseAdmin() || !adminFirestore || !FieldValue) {
+    throw new Error("Firebase Admin not initialized");
+  }
   try {
     await adminFirestore.collection("users").doc(uid).update({
       ...data,
@@ -35,6 +41,9 @@ export async function saveTestResult(
   percentage: number,
   answers: any
 ) {
+  if (!checkFirebaseAdmin() || !adminFirestore || !FieldValue) {
+    throw new Error("Firebase Admin not initialized");
+  }
   try {
     const resultRef = await adminFirestore.collection("testResults").add({
       userId,
@@ -52,6 +61,9 @@ export async function saveTestResult(
 }
 
 export async function getUserTestResults(userId: string) {
+  if (!checkFirebaseAdmin() || !adminFirestore) {
+    throw new Error("Firebase Admin not initialized");
+  }
   try {
     const resultsSnapshot = await adminFirestore
       .collection("testResults")
@@ -70,6 +82,9 @@ export async function getUserTestResults(userId: string) {
 }
 
 export async function createCustomToken(uid: string) {
+  if (!checkFirebaseAdmin() || !adminAuth) {
+    throw new Error("Firebase Admin not initialized");
+  }
   try {
     const customToken = await adminAuth.createCustomToken(uid);
     return customToken;
