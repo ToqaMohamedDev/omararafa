@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase-client";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function StatsSection() {
   const [videosCount, setVideosCount] = useState<number>(0);
@@ -13,24 +15,44 @@ export default function StatsSection() {
     const fetchCounts = async () => {
       try {
         // جلب عدد الفيديوهات
+        let videosCountData = 0;
         const videosRes = await fetch("/api/videos");
         if (videosRes.ok) {
           const videosData = await videosRes.json();
-          setVideosCount(videosData.videos?.length || 0);
-        } else if (videosRes.status !== 503) {
-          // تجاهل 503 (Firebase Admin غير مهيأ في بيئة التطوير)
-          console.warn("Failed to fetch videos count:", videosRes.status);
+          videosCountData = videosData.videos?.length || 0;
         }
 
+        // إذا كان API يعيد 0، استخدم Firebase Client SDK مباشرة
+        if (videosCountData === 0 && db) {
+          try {
+            const videosSnapshot = await getDocs(collection(db, "videos"));
+            videosCountData = videosSnapshot.docs.length;
+          } catch (firestoreError) {
+            console.error("Error fetching videos count from Firestore:", firestoreError);
+          }
+        }
+
+        setVideosCount(videosCountData);
+
         // جلب عدد الاختبارات
+        let testsCountData = 0;
         const testsRes = await fetch("/api/tests");
         if (testsRes.ok) {
           const testsData = await testsRes.json();
-          setTestsCount(testsData.tests?.length || 0);
-        } else if (testsRes.status !== 503) {
-          // تجاهل 503 (Firebase Admin غير مهيأ في بيئة التطوير)
-          console.warn("Failed to fetch tests count:", testsRes.status);
+          testsCountData = testsData.tests?.length || 0;
         }
+
+        // إذا كان API يعيد 0، استخدم Firebase Client SDK مباشرة
+        if (testsCountData === 0 && db) {
+          try {
+            const testsSnapshot = await getDocs(collection(db, "tests"));
+            testsCountData = testsSnapshot.docs.length;
+          } catch (firestoreError) {
+            console.error("Error fetching tests count from Firestore:", firestoreError);
+          }
+        }
+
+        setTestsCount(testsCountData);
       } catch (error) {
         console.error("Error fetching counts:", error);
       } finally {

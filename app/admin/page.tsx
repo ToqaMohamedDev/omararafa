@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
-import { auth } from "@/lib/firebase-client";
+import { auth, db } from "@/lib/firebase-client";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { 
   Video, 
   FileText, 
@@ -185,36 +186,92 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const idToken = await auth?.currentUser?.getIdToken();
-      if (!idToken) return;
-
       // Load categories
+      let categoriesData: Array<{ id: string; name: string }> = [];
       const categoriesRes = await fetch("/api/categories");
       if (categoriesRes.ok) {
         const data = await categoriesRes.json();
-        setCategories(data.categories || []);
+        categoriesData = data.categories || [];
       }
+      // Fallback to Firestore
+      if (categoriesData.length === 0 && db) {
+        try {
+          const categoriesQuery = query(collection(db, "categories"), orderBy("name"));
+          const categoriesSnapshot = await getDocs(categoriesQuery);
+          categoriesData = categoriesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name,
+          }));
+        } catch (error) {
+          console.error("Error fetching categories from Firestore:", error);
+        }
+      }
+      setCategories(categoriesData);
 
       // Load videos
+      let videosData: Video[] = [];
       const videosRes = await fetch("/api/videos");
       if (videosRes.ok) {
         const data = await videosRes.json();
-        setVideos(data.videos || []);
+        videosData = data.videos || [];
       }
+      // Fallback to Firestore
+      if (videosData.length === 0 && db) {
+        try {
+          const videosQuery = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+          const videosSnapshot = await getDocs(videosQuery);
+          videosData = videosSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Video[];
+        } catch (error) {
+          console.error("Error fetching videos from Firestore:", error);
+        }
+      }
+      setVideos(videosData);
 
       // Load tests
+      let testsData: Test[] = [];
       const testsRes = await fetch("/api/tests");
       if (testsRes.ok) {
         const data = await testsRes.json();
-        setTests(data.tests || []);
+        testsData = data.tests || [];
       }
+      // Fallback to Firestore
+      if (testsData.length === 0 && db) {
+        try {
+          const testsSnapshot = await getDocs(collection(db, "tests"));
+          testsData = testsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Test[];
+        } catch (error) {
+          console.error("Error fetching tests from Firestore:", error);
+        }
+      }
+      setTests(testsData);
 
       // Load courses
+      let coursesData: Course[] = [];
       const coursesRes = await fetch("/api/courses");
       if (coursesRes.ok) {
         const data = await coursesRes.json();
-        setCourses(data.courses || []);
+        coursesData = data.courses || [];
       }
+      // Fallback to Firestore
+      if (coursesData.length === 0 && db) {
+        try {
+          const coursesQuery = query(collection(db, "courses"), orderBy("createdAt", "desc"));
+          const coursesSnapshot = await getDocs(coursesQuery);
+          coursesData = coursesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Course[];
+        } catch (error) {
+          console.error("Error fetching courses from Firestore:", error);
+        }
+      }
+      setCourses(coursesData);
     } catch (error) {
       console.error("Load data error:", error);
     }

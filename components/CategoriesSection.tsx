@@ -1,38 +1,137 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase-client";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 export default function CategoriesSection() {
-  const categories = [
-    {
-      title: "النحو",
-      description: "تعلم قواعد النحو والإعراب بطريقة سهلة",
-      icon: "📖",
-      color: "from-primary-400 to-primary-600",
-      count: 25,
-    },
-    {
-      title: "الصرف",
-      description: "فهم الأوزان والصيغ في اللغة العربية",
-      icon: "🔤",
-      color: "from-primary-500 to-primary-700",
-      count: 20,
-    },
-    {
-      title: "البلاغة",
-      description: "المعاني والبيان والبديع",
-      icon: "✨",
-      color: "from-primary-600 to-primary-800",
-      count: 18,
-    },
-    {
-      title: "الأدب",
-      description: "الشعر والنثر والأدب العربي",
-      icon: "📜",
-      color: "from-primary-700 to-primary-900",
-      count: 15,
-    },
-  ];
+  const [categories, setCategories] = useState<Array<{
+    title: string;
+    description: string;
+    icon: string;
+    color: string;
+    count: number;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        // جلب التصنيفات من API أولاً
+        let categoriesData: Array<{ id: string; name: string }> = [];
+        const categoriesRes = await fetch("/api/categories");
+        if (categoriesRes.ok) {
+          const apiData = await categoriesRes.json();
+          categoriesData = apiData.categories || [];
+        }
+
+        // إذا كان API يعيد بيانات فارغة، استخدم Firebase Client SDK مباشرة
+        if (categoriesData.length === 0 && db) {
+          try {
+            const categoriesQuery = query(collection(db, "categories"), orderBy("name"));
+            const categoriesSnapshot = await getDocs(categoriesQuery);
+            categoriesData = categoriesSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              name: doc.data().name,
+            }));
+          } catch (firestoreError) {
+            console.error("Error fetching categories from Firestore:", firestoreError);
+          }
+        }
+
+        // تحويل التصنيفات إلى التنسيق المطلوب
+        const icons = ["📖", "🔤", "✨", "📜", "📚", "🎓", "✍️", "📝"];
+        const colors = [
+          "from-primary-400 to-primary-600",
+          "from-primary-500 to-primary-700",
+          "from-primary-600 to-primary-800",
+          "from-primary-700 to-primary-900",
+        ];
+
+        const formattedCategories = categoriesData.slice(0, 4).map((cat, index) => ({
+          title: cat.name,
+          description: `استكشف محتوى ${cat.name} التعليمي`,
+          icon: icons[index % icons.length],
+          color: colors[index % colors.length],
+          count: 0, // يمكن إضافة count لاحقاً
+        }));
+
+        // إذا لم يكن هناك تصنيفات، استخدم البيانات الافتراضية
+        if (formattedCategories.length === 0) {
+          setCategories([
+            {
+              title: "النحو",
+              description: "تعلم قواعد النحو والإعراب بطريقة سهلة",
+              icon: "📖",
+              color: "from-primary-400 to-primary-600",
+              count: 25,
+            },
+            {
+              title: "الصرف",
+              description: "فهم الأوزان والصيغ في اللغة العربية",
+              icon: "🔤",
+              color: "from-primary-500 to-primary-700",
+              count: 20,
+            },
+            {
+              title: "البلاغة",
+              description: "المعاني والبيان والبديع",
+              icon: "✨",
+              color: "from-primary-600 to-primary-800",
+              count: 18,
+            },
+            {
+              title: "الأدب",
+              description: "الشعر والنثر والأدب العربي",
+              icon: "📜",
+              color: "from-primary-700 to-primary-900",
+              count: 15,
+            },
+          ]);
+        } else {
+          setCategories(formattedCategories);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        // استخدام البيانات الافتراضية في حالة الخطأ
+        setCategories([
+          {
+            title: "النحو",
+            description: "تعلم قواعد النحو والإعراب بطريقة سهلة",
+            icon: "📖",
+            color: "from-primary-400 to-primary-600",
+            count: 25,
+          },
+          {
+            title: "الصرف",
+            description: "فهم الأوزان والصيغ في اللغة العربية",
+            icon: "🔤",
+            color: "from-primary-500 to-primary-700",
+            count: 20,
+          },
+          {
+            title: "البلاغة",
+            description: "المعاني والبيان والبديع",
+            icon: "✨",
+            color: "from-primary-600 to-primary-800",
+            count: 18,
+          },
+          {
+            title: "الأدب",
+            description: "الشعر والنثر والأدب العربي",
+            icon: "📜",
+            color: "from-primary-700 to-primary-900",
+            count: 15,
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
