@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
 // POST - إضافة دورة جديدة
 export async function POST(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { idToken, title, description, videoUrl, thumbnailUrl, duration, level, instructor, category } = await request.json();
 
     if (!idToken) {

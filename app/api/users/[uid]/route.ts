@@ -6,7 +6,12 @@ export async function GET(
   { params }: { params: { uid: string } }
 ) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { uid } = params;
 
     const userDoc = await adminFirestore.collection("users").doc(uid).get();
@@ -36,7 +41,12 @@ export async function PUT(
   { params }: { params: { uid: string } }
 ) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { uid } = params;
     const data = await request.json();
 

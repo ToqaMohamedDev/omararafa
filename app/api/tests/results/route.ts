@@ -3,7 +3,12 @@ import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-a
 
 export async function POST(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { userId, testId, score, answers, percentage } = await request.json();
 
     if (!userId || !testId || score === undefined) {
@@ -40,7 +45,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { results: [], error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 

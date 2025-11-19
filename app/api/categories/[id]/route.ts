@@ -7,7 +7,12 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { id } = params;
     const { idToken, name } = await request.json();
 
@@ -77,7 +82,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { id } = params;
     const { idToken } = await request.json();
 

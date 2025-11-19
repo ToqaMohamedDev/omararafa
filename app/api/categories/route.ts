@@ -29,7 +29,12 @@ export async function GET(request: NextRequest) {
 // POST - إضافة تصنيف جديد
 export async function POST(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!checkFirebaseAdmin()) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const { idToken, name } = await request.json();
 
     if (!idToken) {

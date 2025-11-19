@@ -47,11 +47,9 @@ export const adminAuth = isInitialized && admin.auth ? admin.auth() : null;
 export const adminFirestore = isInitialized && admin.firestore ? admin.firestore() : null;
 export const FieldValue = isInitialized && admin.firestore ? admin.firestore.FieldValue : null;
 
-// دالة للتحقق من تهيئة Firebase Admin
-export function checkFirebaseAdmin() {
-  if (!isInitialized || !adminAuth || !adminFirestore) {
-    throw new Error("Firebase Admin not initialized. Please check environment variables.");
-  }
+// دالة للتحقق من تهيئة Firebase Admin (ترجع boolean بدلاً من رمي خطأ)
+export function checkFirebaseAdmin(): boolean {
+  return isInitialized && adminAuth !== null && adminFirestore !== null;
 }
 
 export default admin;
