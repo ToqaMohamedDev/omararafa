@@ -3,28 +3,43 @@ import { adminAuth, adminFirestore, checkFirebaseAdmin } from "@/lib/firebase-ad
 
 export async function POST(request: NextRequest) {
   try {
-    if (!adminAuth || !adminFirestore) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-
     const { idToken, email, password } = await request.json();
 
     // إذا كان هناك idToken (من Google أو Firebase Auth)
     if (idToken) {
-      const decodedToken = await adminAuth.verifyIdToken(idToken);
-      
-      // جلب بيانات المستخدم من Firestore
-      const userDoc = await adminFirestore.collection("users").doc(decodedToken.uid).get();
-      const userData = userDoc.exists ? userDoc.data() : null;
-      
-      return NextResponse.json({
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        name: decodedToken.name || userData?.name || decodedToken.email?.split("@")[0] || "مستخدم",
-      });
+      // إذا كان Firebase Admin مهيأ، استخدمه
+      if (adminAuth && adminFirestore) {
+        try {
+          const decodedToken = await adminAuth.verifyIdToken(idToken);
+          
+          // جلب بيانات المستخدم من Firestore
+          const userDoc = await adminFirestore.collection("users").doc(decodedToken.uid).get();
+          const userData = userDoc.exists ? userDoc.data() : null;
+          
+          return NextResponse.json({
+            uid: decodedToken.uid,
+            email: decodedToken.email,
+            name: decodedToken.name || userData?.name || decodedToken.email?.split("@")[0] || "مستخدم",
+            photoURL: decodedToken.picture || userData?.photoURL,
+          });
+        } catch (error: any) {
+          // إذا فشل التحقق من token، نعيد 401
+          console.error("Token verification error:", error);
+          return NextResponse.json(
+            { error: error.message || "Invalid token" },
+            { status: 401 }
+          );
+        }
+      } else {
+        // إذا كان Firebase Admin غير مهيأ، نستخدم Firebase Client SDK للتحقق
+        // لكن في server-side، لا يمكننا استخدام Firebase Client SDK
+        // لذا نعيد 503 مع رسالة واضحة
+        // Client-side سيتعامل مع هذا ويستخدم بيانات Firebase Client
+        return NextResponse.json(
+          { error: "Firebase Admin not initialized", fallback: true },
+          { status: 503 }
+        );
+      }
     }
 
     // إذا كان هناك email و password (تسجيل دخول عادي)
