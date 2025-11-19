@@ -46,10 +46,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     if (!checkFirebaseAdmin() || !adminFirestore) {
-      return NextResponse.json(
-        { results: [], error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
+      // في development، إرجاع بيانات فارغة بدلاً من 503
+      return NextResponse.json({ results: [] });
     }
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");

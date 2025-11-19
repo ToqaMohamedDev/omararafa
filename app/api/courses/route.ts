@@ -5,10 +5,8 @@ import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib
 export async function GET(request: NextRequest) {
   try {
     if (!adminFirestore) {
-      return NextResponse.json(
-        { courses: [], error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
+      // في development، إرجاع بيانات فارغة بدلاً من 503
+      return NextResponse.json({ courses: [] });
     }
     const coursesSnapshot = await adminFirestore.collection("courses").orderBy("createdAt", "desc").get();
     

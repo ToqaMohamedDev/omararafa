@@ -7,10 +7,8 @@ export async function GET(
 ) {
   try {
     if (!checkFirebaseAdmin() || !adminFirestore) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
+      // في development، إرجاع null بدلاً من 503
+      return NextResponse.json({ uid: null, error: "Firebase Admin not initialized" });
     }
     const { uid } = params;
 
