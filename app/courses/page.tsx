@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { BookOpen, Clock, Users, Star, Play, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/lib/firebase-client";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 interface Course {
   id: string;
@@ -32,17 +34,57 @@ export default function CoursesPage() {
     const fetchData = async () => {
       try {
         // جلب التصنيفات
+        let categoriesData: Array<{ id: string; name: string }> = [];
         const categoriesRes = await fetch("/api/categories");
         if (categoriesRes.ok) {
-          const categoriesData = await categoriesRes.json();
-          setCategories(categoriesData.categories || []);
+          const apiCategoriesData = await categoriesRes.json();
+          categoriesData = apiCategoriesData.categories || [];
+          setCategories(categoriesData);
         }
 
-        // جلب الدورات
+        // جلب الدورات من API أولاً
         const coursesRes = await fetch("/api/courses");
+        let coursesData: Course[] = [];
+        
         if (coursesRes.ok) {
-          const coursesData = await coursesRes.json();
-          setCourses(coursesData.courses || []);
+          const apiData = await coursesRes.json();
+          coursesData = apiData.courses || [];
+        }
+
+        // إذا كان API يعيد بيانات فارغة، استخدم Firebase Client SDK مباشرة
+        if (coursesData.length === 0 && db) {
+          try {
+            const coursesQuery = query(collection(db, "courses"), orderBy("createdAt", "desc"));
+            const coursesSnapshot = await getDocs(coursesQuery);
+            coursesData = coursesSnapshot.docs.map((doc) => {
+              const courseData = doc.data();
+              const categoryId = courseData.category;
+              return {
+                id: doc.id,
+                ...courseData,
+                categoryName: categoryId ? categoriesData.find(c => c.id === categoryId)?.name || "" : "",
+              };
+            }) as Course[];
+          } catch (firestoreError) {
+            console.error("Error fetching courses from Firestore:", firestoreError);
+          }
+        }
+
+        setCourses(coursesData);
+
+        // جلب التصنيفات من Firestore إذا كان API يعيد بيانات فارغة
+        if (categoriesData.length === 0 && db) {
+          try {
+            const categoriesQuery = query(collection(db, "categories"), orderBy("name"));
+            const categoriesSnapshot = await getDocs(categoriesQuery);
+            const firestoreCategories = categoriesSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              name: doc.data().name,
+            }));
+            setCategories(firestoreCategories);
+          } catch (firestoreError) {
+            console.error("Error fetching categories from Firestore:", firestoreError);
+          }
         }
       } catch (error) {
         console.error("Error fetching data:", error);

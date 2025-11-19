@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "@/hooks/useSession";
 import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/lib/firebase-client";
+import { collection, getDocs } from "firebase/firestore";
 
 interface Question {
   id: number;
@@ -39,16 +41,27 @@ export default function TestsPage() {
     const fetchTests = async () => {
       try {
         const response = await fetch("/api/tests");
+        let testsData: Test[] = [];
+        
         if (response.ok) {
           const data = await response.json();
-          if (data.tests && data.tests.length > 0) {
-            setTests(data.tests);
-          } else {
-            setTests([]); // لا بيانات افتراضية
-          }
-        } else {
-          setTests([]); // لا بيانات افتراضية
+          testsData = data.tests || [];
         }
+
+        // إذا كان API يعيد بيانات فارغة، استخدم Firebase Client SDK مباشرة
+        if (testsData.length === 0 && db) {
+          try {
+            const testsSnapshot = await getDocs(collection(db, "tests"));
+            testsData = testsSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Test[];
+          } catch (firestoreError) {
+            console.error("Error fetching tests from Firestore:", firestoreError);
+          }
+        }
+
+        setTests(testsData);
       } catch (error) {
         console.error("Error fetching tests:", error);
         setTests([]); // لا بيانات افتراضية
