@@ -23,7 +23,10 @@ if (!admin.apps || admin.apps.length === 0) {
 
     // التحقق من وجود private_key قبل التهيئة
     if (!serviceAccount.private_key) {
-      console.warn("Firebase Admin: private_key missing. Admin features will not work.");
+      // في بيئة التطوير المحلية، هذا طبيعي (متغيرات البيئة غير موجودة)
+      if (process.env.NODE_ENV === "production") {
+        console.warn("Firebase Admin: private_key missing. Admin features will not work.");
+      }
     } else {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount as any),
