@@ -1,4 +1,5 @@
-import admin from "firebase-admin";
+import * as firebaseAdmin from "firebase-admin";
+const admin = firebaseAdmin as any;
 
 if (!admin.apps.length) {
   try {
@@ -19,7 +20,7 @@ if (!admin.apps.length) {
         };
 
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+      credential: admin.credential.cert(serviceAccount as any),
       projectId: process.env.FIREBASE_PROJECT_ID || "omrarafa-c6a94",
     });
   } catch (error) {
