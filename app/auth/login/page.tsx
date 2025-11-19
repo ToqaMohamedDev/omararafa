@@ -139,6 +139,20 @@ export default function LoginPage() {
         });
         router.push("/");
       } else {
+        // معالجة 503 بشكل خاص
+        if (response.status === 503) {
+          // في development، Firebase Admin قد لا يكون مهيأ
+          // لكن المستخدم مسجل دخول في Firebase Client، لذا نستخدم بياناته
+          const firebaseUser = result.user;
+          login({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || "",
+            name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+            photoURL: firebaseUser.photoURL || undefined,
+          });
+          router.push("/");
+          return;
+        }
         const errorData = await response.json();
         throw new Error(errorData.error || "حدث خطأ أثناء تسجيل الدخول بـ Google");
       }

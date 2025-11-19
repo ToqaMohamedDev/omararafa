@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -51,6 +52,12 @@ const WhatsAppIcon = () => (
 
 export default function Footer() {
   const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // تجنب hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const socialLinks = [
     {
@@ -79,11 +86,12 @@ export default function Footer() {
     },
   ];
 
+  // استخدام default theme حتى يتم mount
+  const footerBg = mounted && theme === "dark" ? "bg-footer-dark" : "bg-footer-light";
+
   return (
     <footer
-      className={`${
-        theme === "dark" ? "bg-footer-dark" : "bg-footer-light"
-      } text-white py-8 mt-auto`}
+      className={`${footerBg} text-white py-8 mt-auto`}
     >
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
