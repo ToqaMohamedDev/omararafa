@@ -17,6 +17,8 @@ export default function StatsSection() {
         if (videosRes.ok) {
           const videosData = await videosRes.json();
           setVideosCount(videosData.videos?.length || 0);
+        } else {
+          console.warn("Failed to fetch videos count:", videosRes.status);
         }
 
         // جلب عدد الاختبارات
@@ -24,6 +26,8 @@ export default function StatsSection() {
         if (testsRes.ok) {
           const testsData = await testsRes.json();
           setTestsCount(testsData.tests?.length || 0);
+        } else {
+          console.warn("Failed to fetch tests count:", testsRes.status);
         }
       } catch (error) {
         console.error("Error fetching counts:", error);

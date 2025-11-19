@@ -3,7 +3,12 @@ import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib
 
 export async function GET(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!adminFirestore) {
+      return NextResponse.json(
+        { tests: [], error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const testsSnapshot = await adminFirestore.collection("tests").get();
     const tests = testsSnapshot.docs.map((doc: any) => ({
       id: doc.id,

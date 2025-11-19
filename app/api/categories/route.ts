@@ -4,7 +4,12 @@ import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib
 // GET - جلب جميع التصنيفات
 export async function GET(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!adminFirestore) {
+      return NextResponse.json(
+        { categories: [], error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
     const categoriesSnapshot = await adminFirestore.collection("categories").orderBy("name").get();
     const categories = categoriesSnapshot.docs.map((doc: any) => ({
       id: doc.id,

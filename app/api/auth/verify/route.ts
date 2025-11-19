@@ -3,7 +3,12 @@ import { adminAuth, adminFirestore, checkFirebaseAdmin } from "@/lib/firebase-ad
 
 export async function POST(request: NextRequest) {
   try {
-    checkFirebaseAdmin();
+    if (!adminAuth || !adminFirestore) {
+      return NextResponse.json(
+        { error: "Firebase Admin not initialized" },
+        { status: 503 }
+      );
+    }
 
     const { idToken, email, password } = await request.json();
 
