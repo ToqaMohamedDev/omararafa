@@ -44,7 +44,13 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
     // إذا كان الخطأ 503 (Service Unavailable)، يعني Firebase Admin غير مهيأ
     // لكن المستخدم موجود في Firebase Client، لذا نعيد بياناته من Firebase Client
     if (response.status === 503) {
-      console.warn("Firebase Admin not initialized, using client-side user data");
+      // في بيئة التطوير المحلية، Firebase Admin قد لا يكون مهيأ
+      // هذا طبيعي ولا يحتاج إلى warning
+      if (process.env.NODE_ENV === "development") {
+        // صامت في بيئة التطوير
+      } else {
+        console.warn("Firebase Admin not initialized, using client-side user data");
+      }
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",

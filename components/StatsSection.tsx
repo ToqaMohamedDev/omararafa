@@ -17,7 +17,8 @@ export default function StatsSection() {
         if (videosRes.ok) {
           const videosData = await videosRes.json();
           setVideosCount(videosData.videos?.length || 0);
-        } else {
+        } else if (videosRes.status !== 503) {
+          // تجاهل 503 (Firebase Admin غير مهيأ في بيئة التطوير)
           console.warn("Failed to fetch videos count:", videosRes.status);
         }
 
@@ -26,7 +27,8 @@ export default function StatsSection() {
         if (testsRes.ok) {
           const testsData = await testsRes.json();
           setTestsCount(testsData.tests?.length || 0);
-        } else {
+        } else if (testsRes.status !== 503) {
+          // تجاهل 503 (Firebase Admin غير مهيأ في بيئة التطوير)
           console.warn("Failed to fetch tests count:", testsRes.status);
         }
       } catch (error) {
