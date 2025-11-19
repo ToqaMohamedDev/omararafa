@@ -78,7 +78,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin()) {
+    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore) {
       return NextResponse.json(
         { error: "Firebase Admin not initialized" },
         { status: 503 }

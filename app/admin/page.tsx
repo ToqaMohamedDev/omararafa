@@ -156,6 +156,15 @@ export default function AdminPage() {
       if (response.ok) {
         setIsAdmin(true);
         loadData();
+      } else if (response.status === 503) {
+        // في development، Firebase Admin قد لا يكون مهيأ
+        // لكن يمكننا التحقق من email المستخدم مباشرة
+        if (user.email === ADMIN_EMAIL) {
+          setIsAdmin(true);
+          loadData();
+        } else {
+          router.push("/");
+        }
       } else {
         router.push("/");
       }
