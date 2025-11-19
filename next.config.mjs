@@ -17,6 +17,12 @@ const nextConfig = {
       },
     ];
   },
+  // تحسين معالجة الأخطاء
+  onDemandEntries: {
+    // فترة الاحتفاظ بالصفحات في الذاكرة
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
 };
 
 export default nextConfig;
