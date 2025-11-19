@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Play, Clock, Eye, BookOpen, X, Sparkles, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
+import { db } from "@/lib/firebase-client";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 interface Video {
   id: string;
@@ -32,16 +34,53 @@ export default function VideoSection() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // جلب التصنيفات
+        let categoriesData: Array<{ id: string; name: string }> = [];
         const categoriesRes = await fetch("/api/categories");
         if (categoriesRes.ok) {
-          const categoriesData = await categoriesRes.json();
-          setCategories(categoriesData.categories || []);
+          const apiCategoriesData = await categoriesRes.json();
+          categoriesData = apiCategoriesData.categories || [];
+          setCategories(categoriesData);
         }
 
+        // جلب الفيديوهات من API أولاً
         const videosRes = await fetch("/api/videos");
+        let videosData: Video[] = [];
+        
         if (videosRes.ok) {
-          const videosData = await videosRes.json();
-          setVideos(videosData.videos || []);
+          const apiData = await videosRes.json();
+          videosData = apiData.videos || [];
+        }
+
+        // إذا كان API يعيد بيانات فارغة، استخدم Firebase Client SDK مباشرة
+        if (videosData.length === 0 && db) {
+          try {
+            const videosQuery = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+            const videosSnapshot = await getDocs(videosQuery);
+            videosData = videosSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Video[];
+          } catch (firestoreError) {
+            console.error("Error fetching videos from Firestore:", firestoreError);
+          }
+        }
+
+        setVideos(videosData);
+
+        // جلب التصنيفات من Firestore إذا كان API يعيد بيانات فارغة
+        if (categoriesData.length === 0 && db) {
+          try {
+            const categoriesQuery = query(collection(db, "categories"), orderBy("name"));
+            const categoriesSnapshot = await getDocs(categoriesQuery);
+            const firestoreCategories = categoriesSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              name: doc.data().name,
+            }));
+            setCategories(firestoreCategories);
+          } catch (firestoreError) {
+            console.error("Error fetching categories from Firestore:", firestoreError);
+          }
         }
       } catch (error) {
         console.error("Error fetching data:", error);
