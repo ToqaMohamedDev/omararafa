@@ -3,7 +3,7 @@ import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-a
 
 export async function POST(request: NextRequest) {
   try {
-    if (!checkFirebaseAdmin()) {
+    if (!checkFirebaseAdmin() || !adminFirestore || !FieldValue) {
       return NextResponse.json(
         { error: "Firebase Admin not initialized" },
         { status: 503 }

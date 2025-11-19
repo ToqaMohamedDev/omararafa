@@ -7,7 +7,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin()) {
+    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore || !FieldValue) {
       return NextResponse.json(
         { error: "Firebase Admin not initialized" },
         { status: 503 }

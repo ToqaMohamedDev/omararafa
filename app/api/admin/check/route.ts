@@ -5,7 +5,7 @@ const ADMIN_EMAIL = "dzggghjg@gmail.com";
 
 export async function POST(request: NextRequest) {
   try {
-    if (!checkFirebaseAdmin()) {
+    if (!checkFirebaseAdmin() || !adminAuth) {
       return NextResponse.json(
         { error: "Firebase Admin not initialized" },
         { status: 503 }
