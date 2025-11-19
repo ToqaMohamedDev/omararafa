@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
 
 // GET - جلب جميع الفيديوهات
 export async function GET(request: NextRequest) {
@@ -80,8 +79,8 @@ export async function POST(request: NextRequest) {
       category, // category ID
       level: level || "مبتدئ",
       views: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({

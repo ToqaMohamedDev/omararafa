@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
 
 // PUT - تحديث تصنيف
 export async function PUT(
@@ -53,7 +52,7 @@ export async function PUT(
 
     await adminFirestore.collection("categories").doc(id).update({
       name: name.trim(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     const updatedDoc = await adminFirestore.collection("categories").doc(id).get();

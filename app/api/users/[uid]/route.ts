@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, FieldValue } from "@/lib/firebase-admin";
 
 export async function GET(
   request: NextRequest,
@@ -41,7 +40,7 @@ export async function PUT(
 
     await adminFirestore.collection("users").doc(uid).update({
       ...data,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     const updatedDoc = await adminFirestore.collection("users").doc(uid).get();

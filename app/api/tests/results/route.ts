@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, FieldValue } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +18,7 @@ export async function POST(request: NextRequest) {
       score,
       percentage,
       answers,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({

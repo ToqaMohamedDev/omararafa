@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
 
 // PUT - تحديث اختبار
 export async function PUT(
@@ -29,7 +28,7 @@ export async function PUT(
 
     await adminFirestore.collection("tests").doc(id).update({
       ...testData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     const updatedDoc = await adminFirestore.collection("tests").doc(id).get();

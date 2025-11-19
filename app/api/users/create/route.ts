@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminFirestore } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminAuth, adminFirestore, FieldValue } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,8 +24,8 @@ export async function POST(request: NextRequest) {
     await adminFirestore.collection("users").doc(userRecord.uid).set({
       name,
       email,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({

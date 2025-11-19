@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth } from "@/lib/firebase-admin";
-import admin from "firebase-admin";
+import { adminFirestore, adminAuth, FieldValue } from "@/lib/firebase-admin";
 
 // PUT - تحديث دورة
 export async function PUT(
@@ -28,7 +27,7 @@ export async function PUT(
     }
 
     const updateData: any = {
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     if (title) updateData.title = title;
