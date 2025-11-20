@@ -178,10 +178,12 @@ const saveUserDataWithRetry = async (
     // إذا لم يكن مسجل دخول، Firestore Security Rules سترفض الطلب
   } else {
     // التأكد من أن UID يطابق المستخدم الحالي
-    if (currentUser.uid !== uid) {
+    if (currentUser && currentUser.uid !== uid) {
       throw new Error(`UID غير متطابق: المتوقع ${uid}, الحالي ${currentUser.uid}`);
     }
-    console.log("✅ UID متطابق:", uid);
+    if (currentUser) {
+      console.log("✅ UID متطابق:", uid);
+    }
   }
 
   const userRef = doc(db, "users", uid);
