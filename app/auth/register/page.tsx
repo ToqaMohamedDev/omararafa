@@ -561,8 +561,16 @@ export default function RegisterPage() {
       } catch (saveError: any) {
         console.error("❌ خطأ في حفظ البيانات:", saveError);
         
-        // إذا فشل الحفظ، حاول استخدام API كـ fallback
+        // إذا فشل الحفظ، حاول استخدام API كـ fallback (فقط في production أو إذا كان الخطأ permission-denied)
         if (saveError.code === "permission-denied" || saveError.message?.includes("صلاحية")) {
+          // في development، تخطي محاولة API لتجنب 503 errors
+          const isDevelopment = process.env.NODE_ENV === "development";
+          
+          if (isDevelopment) {
+            console.warn("⚠️ في development: تخطي محاولة API - تأكد من Firestore Security Rules");
+            throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
+          }
+          
           console.warn("⚠️ محاولة استخدام API كـ fallback");
           try {
             const response = await fetch(`/api/users/${uid}`, {
