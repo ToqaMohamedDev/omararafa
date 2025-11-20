@@ -187,20 +187,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               if (!userData.phone || !userData.birthDate) {
                 // إذا لم تكن البيانات موجودة، تحقق من الصفحة الحالية
                 if (typeof window !== "undefined") {
-                  const currentPath = window.location.pathname;
+                  // استخدام عدة طرق للتحقق من الصفحة الحالية
+                  const currentPath = window.location.pathname || window.location.href;
+                  const isAuthPage = currentPath.includes("/auth/login") || 
+                                    currentPath.includes("/auth/register") ||
+                                    currentPath.includes("/auth/");
                   
                   // إذا كان المستخدم في صفحة auth (login/register)، لا تسجل خروجه
                   // دع المستخدم يكمل بياناته
-                  if (currentPath.includes("/auth/")) {
-                    console.log("⚠️ بيانات ناقصة - المستخدم في صفحة auth، لا تسجيل خروج");
+                  if (isAuthPage) {
+                    console.log("⚠️ بيانات ناقصة - المستخدم في صفحة auth، لا تسجيل خروج", {
+                      path: currentPath,
+                      hasPhone: !!userData.phone,
+                      hasBirthDate: !!userData.birthDate
+                    });
                     // لا تسجل خروج - دع المستخدم يكمل بياناته
+                    // لكن نحافظ على firebaseUser موجوداً
                     setUser(null);
                     localStorage.removeItem("user");
                     return;
                   }
                   
                   // إذا كان المستخدم في صفحة أخرى، سجل خروجه وأعد التوجيه
-                  console.log("User data incomplete - logging out");
+                  console.log("User data incomplete - logging out", {
+                    path: currentPath,
+                    hasPhone: !!userData.phone,
+                    hasBirthDate: !!userData.birthDate
+                  });
                   if (auth) {
                     await firebaseSignOut(auth);
                   }

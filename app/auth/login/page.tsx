@@ -150,28 +150,38 @@ const saveUserDataWithRetry = async (
   }
 
   // التحقق من أن المستخدم مسجل دخول
-  // إذا لم يكن auth.currentUser موجوداً، انتظر قليلاً ثم حاول مرة أخرى
+  // استخدام waitForAuth للحصول على auth.currentUser
   if (!auth) {
     throw new Error("Firebase Auth غير مهيأ");
   }
 
-  // محاولة الانتظار للحصول على auth.currentUser
+  // محاولة الانتظار للحصول على auth.currentUser باستخدام waitForAuth
   let currentUser = auth.currentUser;
   if (!currentUser) {
-    // انتظر قليلاً - قد يكون auth.currentUser لم يتم تحديثه بعد
-    await new Promise(resolve => setTimeout(resolve, 500));
-    currentUser = auth.currentUser;
+    try {
+      // انتظر حتى يكون auth.currentUser جاهز (بحد أقصى 3 ثوان)
+      currentUser = await waitForAuth(3000);
+      console.log("✅ تم الحصول على auth.currentUser:", currentUser.uid);
+    } catch (waitError) {
+      console.warn("⚠️ لم يتم الحصول على auth.currentUser في الوقت المحدد:", waitError);
+      // إذا فشل waitForAuth، انتظر قليلاً ثم حاول مرة أخرى
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      currentUser = auth.currentUser;
+    }
   }
 
   // إذا لم يكن موجوداً بعد، استخدم UID مباشرة (المستخدم مسجل دخول بالفعل من Google)
   if (!currentUser) {
     console.warn("⚠️ auth.currentUser غير موجود، لكن المستخدم مسجل دخول - استخدام UID مباشرة");
     // نستمر في المحاولة - Firestore Security Rules ستحقق من auth token
+    // لكن يجب أن نتحقق من أن المستخدم مسجل دخول بالفعل
+    // إذا لم يكن مسجل دخول، Firestore Security Rules سترفض الطلب
   } else {
     // التأكد من أن UID يطابق المستخدم الحالي
     if (currentUser.uid !== uid) {
-      throw new Error("UID غير متطابق مع المستخدم الحالي");
+      throw new Error(`UID غير متطابق: المتوقع ${uid}, الحالي ${currentUser.uid}`);
     }
+    console.log("✅ UID متطابق:", uid);
   }
 
   const userRef = doc(db, "users", uid);
