@@ -238,15 +238,19 @@ export default function AdminPage() {
         testsData = data.tests || [];
       }
       // Fallback to Firestore
-      if (testsData.length === 0 && db) {
+      if (testsData.length === 0 && db && auth?.currentUser) {
         try {
           const testsSnapshot = await getDocs(collection(db, "tests"));
           testsData = testsSnapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           })) as Test[];
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching tests from Firestore:", error);
+          // إذا كان الخطأ permission-denied، هذا يعني أن Firestore Security Rules غير صحيحة
+          if (error.code === "permission-denied") {
+            console.error("⚠️ Firestore Security Rules تمنع القراءة. تأكد من تطبيق القواعد في Firebase Console.");
+          }
         }
       }
       setTests(testsData);
@@ -259,7 +263,7 @@ export default function AdminPage() {
         coursesData = data.courses || [];
       }
       // Fallback to Firestore
-      if (coursesData.length === 0 && db) {
+      if (coursesData.length === 0 && db && auth?.currentUser) {
         try {
           const coursesQuery = query(collection(db, "courses"), orderBy("createdAt", "desc"));
           const coursesSnapshot = await getDocs(coursesQuery);
@@ -267,8 +271,12 @@ export default function AdminPage() {
             id: doc.id,
             ...doc.data(),
           })) as Course[];
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching courses from Firestore:", error);
+          // إذا كان الخطأ permission-denied، هذا يعني أن Firestore Security Rules غير صحيحة
+          if (error.code === "permission-denied") {
+            console.error("⚠️ Firestore Security Rules تمنع القراءة. تأكد من تطبيق القواعد في Firebase Console.");
+          }
         }
       }
       setCourses(coursesData);

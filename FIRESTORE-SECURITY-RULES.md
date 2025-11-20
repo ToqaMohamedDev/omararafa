@@ -57,10 +57,22 @@ service cloud.firestore {
       allow write: if false; // منع جميع عمليات الكتابة (إضافة، تعديل، حذف)
     }
     
+    // مجموعة Tests (للاستعلامات - queries)
+    match /tests/{document=**} {
+      allow read: if request.auth != null; // السماح بالقراءة للمستخدمين المسجلين دخول
+      allow write: if false;
+    }
+    
     // مجموعة Courses
     match /courses/{courseId} {
       allow read: if request.auth != null; // السماح بالقراءة للمستخدمين المسجلين دخول
       allow write: if false; // منع جميع عمليات الكتابة (إضافة، تعديل، حذف)
+    }
+    
+    // مجموعة Courses (للاستعلامات - queries)
+    match /courses/{document=**} {
+      allow read: if request.auth != null; // السماح بالقراءة للمستخدمين المسجلين دخول
+      allow write: if false;
     }
     
     // ==========================================================
