@@ -2,12 +2,31 @@
 
 import { useSession } from "@/hooks/useSession";
 import { useRouter } from "next/navigation";
-import { User, Mail, Award, BookOpen, Clock, TrendingUp } from "lucide-react";
-import { useEffect } from "react";
+import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, loading } = useSession();
+  const { user, isAuthenticated, loading, logout, updateUser } = useSession();
   const router = useRouter();
+  const [formData, setFormData] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    birthDate: user?.birthDate || "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        birthDate: user.birthDate || "",
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     // انتظر حتى يتم تحميل حالة المصادقة قبل التحقق
@@ -28,6 +47,25 @@ export default function ProfilePage() {
   if (!isAuthenticated) {
     return null;
   }
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage("");
+    try {
+      await updateUser({
+        name: formData.name,
+        phone: formData.phone,
+        birthDate: formData.birthDate,
+      });
+      setSaveMessage("تم حفظ التغييرات بنجاح!");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      setSaveMessage("حدث خطأ أثناء حفظ التغييرات");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const stats = [
     {
@@ -66,17 +104,33 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-soft p-6">
             <div className="flex items-center gap-6 mb-6">
-              <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center">
-                <User className="w-12 h-12 text-primary-DEFAULT" />
-              </div>
+              {user?.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.name}
+                  className="w-24 h-24 rounded-full object-cover border-2 border-primary-DEFAULT"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-primary-DEFAULT flex items-center justify-center border-2 border-primary-600">
+                  <span className="text-3xl font-bold text-white">
+                    {user?.name?.charAt(0)?.toUpperCase() || "م"}
+                  </span>
+                </div>
+              )}
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   {user?.name}
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2 mb-1">
                   <Mail className="w-4 h-4" />
                   {user?.email}
                 </p>
+                {user?.phone && (
+                  <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    {user.phone}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -87,8 +141,9 @@ export default function ProfilePage() {
                 </label>
                 <input
                   type="text"
-                  defaultValue={user?.name}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent"
                 />
               </div>
               <div>
@@ -97,12 +152,58 @@ export default function ProfilePage() {
                 </label>
                 <input
                   type="email"
-                  defaultValue={user?.email}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={formData.email}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
                 />
               </div>
-              <button className="w-full bg-primary-DEFAULT text-white py-3 rounded-lg hover:bg-primary-dark transition font-semibold">
-                حفظ التغييرات
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  رقم التليفون
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="01146525436"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  تاريخ الميلاد
+                </label>
+                <input
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent"
+                />
+              </div>
+              {saveMessage && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  saveMessage.includes("نجاح") 
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" 
+                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+                }`}>
+                  {saveMessage}
+                </div>
+              )}
+              <button 
+                onClick={handleSave}
+                disabled={isSaving}
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? "جاري الحفظ..." : "حفظ التغييرات"}
+              </button>
+              <button 
+                onClick={logout}
+                className="w-full flex items-center justify-center gap-2 bg-red-500 text-white py-3 rounded-lg hover:bg-red-600 transition font-semibold mt-4"
+              >
+                <LogOut className="w-5 h-5" />
+                تسجيل الخروج
               </button>
             </div>
           </div>
@@ -159,7 +260,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  اختبار الصرف - الأوزان
+                  اختبار النصوص - التحليل
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   تم في 10 يناير 2024

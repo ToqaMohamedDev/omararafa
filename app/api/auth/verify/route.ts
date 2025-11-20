@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
             email: decodedToken.email,
             name: decodedToken.name || userData?.name || decodedToken.email?.split("@")[0] || "مستخدم",
             photoURL: decodedToken.picture || userData?.photoURL,
+            phone: userData?.phone || "",
+            birthDate: userData?.birthDate || "",
           });
         } catch (error: any) {
           // إذا فشل التحقق من token، نعيد 401

@@ -65,7 +65,7 @@ export default function StatsSection() {
 
   const stats = [
     {
-      number: "7+",
+      number: "9+",
       label: "سنوات خبرة",
       icon: "📚",
       description: "في تدريس اللغة العربية",

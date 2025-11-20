@@ -64,7 +64,7 @@ export default function PricingSection() {
       level: "جميع المستويات",
     },
     {
-      title: "دورة الصرف والأوزان",
+      title: "دورة النصوص والقراءة",
       duration: "35 ساعة",
       price: "1800",
       level: "متوسط - متقدم",

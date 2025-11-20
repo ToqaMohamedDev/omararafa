@@ -15,10 +15,13 @@ import {
   ArrowRight,
   CheckCircle,
   XCircle,
+  Phone,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import { signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase-client";
+import { auth, googleProvider, db } from "@/lib/firebase-client";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -29,6 +32,10 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGoogleForm, setShowGoogleForm] = useState(false);
+  const [googleUserData, setGoogleUserData] = useState<any>(null);
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const { login } = useSession();
   const router = useRouter();
 
@@ -73,37 +80,75 @@ export default function RegisterPage() {
       }
       try {
         // استخدام Firebase Client SDK لإنشاء الحساب
-        const { createUserWithEmailAndPassword } = await import("firebase/auth");
+        const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
         const result = await createUserWithEmailAndPassword(auth, email, password);
         const user = result.user;
         
-        // الحصول على ID token
-        const idToken = await user.getIdToken();
-        
-        // حفظ بيانات المستخدم في Firestore
-        const response = await fetch("/api/auth/google", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ 
-            idToken,
-            name, // إرسال الاسم أيضاً
-          }),
+        // تحديث displayName في Firebase Auth
+        await updateProfile(user, {
+          displayName: name,
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          login({
-            uid: data.uid,
-            email: data.email || email,
-            name: data.name || name,
-          });
-          router.push("/");
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "حدث خطأ أثناء إنشاء الحساب");
+        
+        // حفظ بيانات المستخدم في Firestore مباشرة
+        if (db) {
+          try {
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, {
+              name: name,
+              email: email,
+              photoURL: "",
+              phone: "",
+              birthDate: "",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          } catch (firestoreError) {
+            console.warn("Error saving user to Firestore:", firestoreError);
+            // لا نوقف العملية، فقط نعرض warning
+          }
         }
+        
+        // محاولة استخدام API كـ fallback (اختياري)
+        try {
+          const idToken = await user.getIdToken();
+          const response = await fetch("/api/auth/google", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              idToken,
+              name,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            login({
+              uid: data.uid,
+              email: data.email || email,
+              name: data.name || name,
+              photoURL: data.photoURL || "",
+              phone: data.phone || "",
+              birthDate: data.birthDate || "",
+            });
+            router.push("/");
+            return;
+          }
+        } catch (apiError) {
+          console.warn("API call failed, using client-side data:", apiError);
+        }
+        
+        // إذا فشل API، استخدم البيانات من Firebase Client
+        login({
+          uid: user.uid,
+          email: user.email || email,
+          name: name,
+          photoURL: "",
+          phone: "",
+          birthDate: "",
+        });
+        router.push("/");
       } catch (err: any) {
         console.error("Register error:", err);
         let errorMessage = "حدث خطأ أثناء إنشاء الحساب";
@@ -171,25 +216,86 @@ export default function RegisterPage() {
 
       if (response.ok) {
         const data = await response.json();
-        login({
-          uid: data.uid,
-          email: data.email || "",
-          name: data.name || "مستخدم",
-        });
-        router.push("/");
+        // إذا كان هناك phone و birthDate محفوظين، سجل دخول مباشرة
+        if (data.phone && data.birthDate) {
+          login({
+            uid: data.uid,
+            email: data.email || "",
+            name: data.name || "مستخدم",
+            photoURL: data.photoURL || undefined,
+            phone: data.phone || "",
+            birthDate: data.birthDate || "",
+          });
+          router.push("/");
+        } else {
+          // إذا لم يكن هناك phone و birthDate، اعرض النموذج
+          setGoogleUserData({
+            uid: data.uid,
+            email: data.email || "",
+            name: data.name || "مستخدم",
+            photoURL: data.photoURL || undefined,
+            phone: data.phone || "",
+            birthDate: data.birthDate || "",
+          });
+          setShowGoogleForm(true);
+          setIsLoading(false);
+        }
       } else {
         // معالجة 503 بشكل خاص
         if (response.status === 503) {
           // في development، Firebase Admin قد لا يكون مهيأ
           // لكن المستخدم مسجل دخول في Firebase Client، لذا نستخدم بياناته
           const firebaseUser = result.user;
-          login({
+          // حفظ البيانات في Firestore مباشرة
+          if (db) {
+            try {
+              const userRef = doc(db, "users", firebaseUser.uid);
+              const userDoc = await getDoc(userRef);
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                if (userData.phone && userData.birthDate) {
+                  login({
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email || "",
+                    name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+                    photoURL: firebaseUser.photoURL || undefined,
+                    phone: userData.phone || "",
+                    birthDate: userData.birthDate || "",
+                  });
+                  router.push("/");
+                  return;
+                }
+              }
+              
+              // إذا لم تكن هناك بيانات، اعرض النموذج
+              setGoogleUserData({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || "",
+                name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+                photoURL: firebaseUser.photoURL || undefined,
+                phone: "",
+                birthDate: "",
+              });
+              setShowGoogleForm(true);
+              setIsLoading(false);
+              return;
+            } catch (firestoreError) {
+              console.warn("Error checking Firestore:", firestoreError);
+            }
+          }
+          
+          // Fallback: اعرض النموذج
+          setGoogleUserData({
             uid: firebaseUser.uid,
             email: firebaseUser.email || "",
             name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
             photoURL: firebaseUser.photoURL || undefined,
+            phone: "",
+            birthDate: "",
           });
-          router.push("/");
+          setShowGoogleForm(true);
+          setIsLoading(false);
           return;
         }
         const errorData = await response.json();
@@ -217,6 +323,68 @@ export default function RegisterPage() {
       
       setError(errorMessage);
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    
+    // التحقق من أن الحقول مملوءة
+    if (!phone || !birthDate) {
+      setError("يرجى إدخال رقم التليفون وتاريخ الميلاد");
+      return;
+    }
+
+    setIsLoading(true);
+
+    if (!googleUserData) {
+      setError("حدث خطأ. يرجى المحاولة مرة أخرى.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // حفظ البيانات في Firestore
+      if (db) {
+        const userRef = doc(db, "users", googleUserData.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          await setDoc(userRef, {
+            ...userDoc.data(),
+            phone: phone || "",
+            birthDate: birthDate || "",
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+        } else {
+          await setDoc(userRef, {
+            name: googleUserData.name,
+            email: googleUserData.email,
+            photoURL: googleUserData.photoURL || "",
+            phone: phone || "",
+            birthDate: birthDate || "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      // تسجيل الدخول
+      login({
+        uid: googleUserData.uid,
+        email: googleUserData.email || "",
+        name: googleUserData.name || "مستخدم",
+        photoURL: googleUserData.photoURL || undefined,
+        phone: phone || "",
+        birthDate: birthDate || "",
+      });
+      
+      router.push("/");
+    } catch (err: any) {
+      console.error("Error saving Google user data:", err);
+      setError("حدث خطأ أثناء حفظ البيانات");
       setIsLoading(false);
     }
   };
@@ -550,10 +718,10 @@ export default function RegisterPage() {
             <motion.button
               type="button"
               onClick={handleGoogleSignIn}
-              disabled={isLoading || passwordsMismatch || password.length < 6}
+              disabled={isLoading}
               className="w-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-3.5 px-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-300 font-semibold flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md group relative overflow-hidden"
-              whileHover={{ scale: isLoading || passwordsMismatch || password.length < 6 ? 1 : 1.02, y: -2 }}
-              whileTap={{ scale: isLoading || passwordsMismatch || password.length < 6 ? 1 : 0.98 }}
+              whileHover={{ scale: isLoading ? 1 : 1.02, y: -2 }}
+              whileTap={{ scale: isLoading ? 1 : 0.98 }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               <motion.div
@@ -635,6 +803,82 @@ export default function RegisterPage() {
           </Link>
         </motion.div>
       </motion.div>
+
+      {/* Google Form Modal */}
+      <AnimatePresence>
+        {showGoogleForm && googleUserData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              // منع إغلاق الـ modal عند الضغط على الخلفية
+              e.stopPropagation();
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="card p-8 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                أكمل بياناتك
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                يرجى إدخال رقم التليفون وتاريخ الميلاد لإكمال التسجيل (إجباري)
+              </p>
+
+              <form onSubmit={handleGoogleFormSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    رقم التليفون <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="01146525436"
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-DEFAULT focus:border-primary-DEFAULT bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    تاريخ الميلاد <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-DEFAULT focus:border-primary-DEFAULT bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !phone || !birthDate}
+                  className="w-full btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "جاري الحفظ..." : "حفظ والمتابعة"}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export default function CategoriesSection() {
         }
 
         // تحويل التصنيفات إلى التنسيق المطلوب
-        const icons = ["📖", "🔤", "✨", "📜", "📚", "🎓", "✍️", "📝"];
+        const icons = ["📖", "✨", "📜", "📝", "📚", "🎓", "✍️"];
         const colors = [
           "from-primary-400 to-primary-600",
           "from-primary-500 to-primary-700",
@@ -49,7 +49,7 @@ export default function CategoriesSection() {
           "from-primary-700 to-primary-900",
         ];
 
-        const formattedCategories = categoriesData.slice(0, 4).map((cat, index) => ({
+        const formattedCategories = categoriesData.slice(0, 5).map((cat, index) => ({
           title: cat.name,
           description: `استكشف محتوى ${cat.name} التعليمي`,
           icon: icons[index % icons.length],
@@ -68,25 +68,32 @@ export default function CategoriesSection() {
               count: 25,
             },
             {
-              title: "الصرف",
-              description: "فهم الأوزان والصيغ في اللغة العربية",
-              icon: "🔤",
-              color: "from-primary-500 to-primary-700",
-              count: 20,
-            },
-            {
               title: "البلاغة",
               description: "المعاني والبيان والبديع",
               icon: "✨",
-              color: "from-primary-600 to-primary-800",
+              color: "from-primary-500 to-primary-700",
               count: 18,
             },
             {
               title: "الأدب",
               description: "الشعر والنثر والأدب العربي",
               icon: "📜",
-              color: "from-primary-700 to-primary-900",
+              color: "from-primary-600 to-primary-800",
               count: 15,
+            },
+            {
+              title: "النصوص",
+              description: "تحليل النصوص الأدبية والشعرية",
+              icon: "📝",
+              color: "from-primary-700 to-primary-900",
+              count: 12,
+            },
+            {
+              title: "القراءة",
+              description: "تحسين مهارات القراءة والفهم",
+              icon: "📚",
+              color: "from-primary-400 to-primary-600",
+              count: 10,
             },
           ]);
         } else {
@@ -104,25 +111,32 @@ export default function CategoriesSection() {
             count: 25,
           },
           {
-            title: "الصرف",
-            description: "فهم الأوزان والصيغ في اللغة العربية",
-            icon: "🔤",
-            color: "from-primary-500 to-primary-700",
-            count: 20,
-          },
-          {
             title: "البلاغة",
             description: "المعاني والبيان والبديع",
             icon: "✨",
-            color: "from-primary-600 to-primary-800",
+            color: "from-primary-500 to-primary-700",
             count: 18,
           },
           {
             title: "الأدب",
             description: "الشعر والنثر والأدب العربي",
             icon: "📜",
-            color: "from-primary-700 to-primary-900",
+            color: "from-primary-600 to-primary-800",
             count: 15,
+          },
+          {
+            title: "النصوص",
+            description: "تحليل النصوص الأدبية والشعرية",
+            icon: "📝",
+            color: "from-primary-700 to-primary-900",
+            count: 12,
+          },
+          {
+            title: "القراءة",
+            description: "تحسين مهارات القراءة والفهم",
+            icon: "📚",
+            color: "from-primary-400 to-primary-600",
+            count: 10,
           },
         ]);
       } finally {
@@ -175,7 +189,7 @@ export default function CategoriesSection() {
         </motion.div>
 
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"

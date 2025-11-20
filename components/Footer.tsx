@@ -96,9 +96,9 @@ export default function Footer() {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <h3 className="text-xl font-bold mb-4">عمر عرفه</h3>
+            <h3 className="text-xl font-bold mb-4">عمر عرفة</h3>
             <p className="text-gray-300 mb-4">
-              مدرس لغة عربية أزهري بخبرة 7 سنوات في تدريس اللغة العربية
+              مدرس لغة عربية بخبرة 9 سنوات في تدريس اللغة العربية
             </p>
             
             {/* Social Media Links */}
@@ -187,8 +187,7 @@ export default function Footer() {
             <h3 className="text-xl font-bold mb-4">معلومات</h3>
             <ul className="space-y-2 text-gray-300">
               <li>التخصص: لغة عربية</li>
-              <li>الخبرة: 7 سنوات</li>
-              <li>المؤسسة: الأزهر الشريف</li>
+              <li>الخبرة: 9 سنوات</li>
             </ul>
           </div>
         </div>

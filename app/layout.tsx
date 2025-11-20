@@ -13,8 +13,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "عمر عرفه - مدرس اللغة العربية",
-  description: "موقع تعليمي لمدرس اللغة العربية الأزهري عمر عرفه",
+  title: "عمر عرفة - مدرس اللغة العربية",
+  description: "موقع تعليمي لمدرس اللغة العربية عمر عرفة",
 };
 
 export default function RootLayout({

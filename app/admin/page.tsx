@@ -117,7 +117,7 @@ export default function AdminPage() {
     thumbnailUrl: "",
     duration: "",
     level: "مبتدئ",
-    instructor: "عمر عرفه",
+    instructor: "عمر عرفة",
     category: "",
   });
 
@@ -585,7 +585,7 @@ export default function AdminPage() {
           thumbnailUrl: "",
           duration: "",
           level: "مبتدئ",
-          instructor: "عمر عرفه",
+          instructor: "عمر عرفة",
           category: "",
         });
         loadData();
@@ -664,14 +664,6 @@ export default function AdminPage() {
               إدارة التصنيفات والفيديوهات والاختبارات والدورات
             </p>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-5 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">تسجيل الخروج</span>
-            <span className="sm:hidden">خروج</span>
-          </button>
         </div>
 
         {/* Message */}
@@ -759,7 +751,7 @@ export default function AdminPage() {
                         required
                         value={categoryForm.name}
                         onChange={(e) => setCategoryForm({ name: e.target.value })}
-                        placeholder="مثال: النحو، الصرف، البلاغة..."
+                        placeholder="مثال: النحو، البلاغة، الأدب، النصوص، القراءة..."
                         className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                       />
                     </div>
@@ -1277,7 +1269,7 @@ export default function AdminPage() {
                     thumbnailUrl: "",
                     duration: "",
                     level: "مبتدئ",
-                    instructor: "عمر عرفه",
+                    instructor: "عمر عرفة",
                     category: "",
                   });
                   setShowCourseForm(true);

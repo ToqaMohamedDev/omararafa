@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       thumbnailUrl: thumbnailUrl || "",
       duration: duration || "0 ساعة",
       level: level || "مبتدئ",
-      instructor: instructor || "عمر عرفه",
+      instructor: instructor || "عمر عرفة",
       category, // category ID
       students: 0,
       rating: 0,

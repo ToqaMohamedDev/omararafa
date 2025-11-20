@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Moon, Sun, Menu, X, User, LogOut, Settings } from "lucide-react";
+import { Moon, Sun, Menu, X, User, Settings } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -13,7 +13,7 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { user, isAuthenticated, logout } = useSession();
+  const { user, isAuthenticated } = useSession();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function Navbar() {
               >
                 ع
               </motion.span>
-              <span className="hidden sm:inline">عمر عرفه</span>
+              <span className="hidden sm:inline">عمر عرفة</span>
             </Link>
           </motion.div>
 
@@ -171,18 +171,6 @@ export default function Navbar() {
                     )}
                   </Link>
                 </motion.div>
-                <motion.button
-                  onClick={logout}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (navLinks.length + (user?.email === "dzggghjg@gmail.com" ? 2 : 1)) * 0.05 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary-DEFAULT transition-colors px-3 xl:px-4 py-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50 font-medium text-sm xl:text-base"
-                >
-                  <LogOut className="w-4 h-4 ml-1.5" />
-                  <span>تسجيل الخروج</span>
-                </motion.button>
               </>
             ) : (
               <motion.div
@@ -428,19 +416,6 @@ export default function Navbar() {
                         {user?.name}
                       </Link>
                     </motion.div>
-                    <motion.button
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: (navLinks.length + 1) * 0.05 }}
-                      onClick={() => {
-                        logout();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary-DEFAULT transition text-right py-2.5 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 w-full"
-                    >
-                      <LogOut className="w-4 h-4 ml-2" />
-                      تسجيل الخروج
-                    </motion.button>
                   </>
                 ) : (
                   <motion.div

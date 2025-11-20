@@ -37,7 +37,7 @@ export default function AboutSection() {
             transition={{ duration: 0.5 }}
           >
             <h2 className="text-4xl font-bold mb-4 text-gray-900 dark:text-white">
-              عن الأستاذ عمر عرفه
+              عن الأستاذ عمر عرفة
             </h2>
             <motion.div
               className="w-24 h-1 bg-primary-DEFAULT mx-auto rounded-full"
@@ -65,8 +65,8 @@ export default function AboutSection() {
                   الخبرة والتدريس
                 </h3>
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-                  مدرس لغة عربية أزهري بخبرة تزيد عن 7 سنوات في تدريس اللغة العربية
-                  بجميع فروعها. متخصص في النحو والصرف والبلاغة والإعراب.
+                  مدرس لغة عربية بخبرة تزيد عن 9 سنوات في تدريس اللغة العربية
+                  بجميع فروعها. متخصص في النحو والبلاغة والأدب والنصوص والقراءة.
                 </p>
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                   أهتم بتقديم المحتوى التعليمي بطريقة سهلة ومبسطة تناسب جميع المستويات،
@@ -79,7 +79,7 @@ export default function AboutSection() {
                 variants={itemVariants}
               >
                 {[
-                  { number: "7+", label: "سنوات خبرة" },
+                  { number: "9+", label: "سنوات خبرة" },
                   { number: "500+", label: "طالب" },
                 ].map((stat, index) => (
                   <motion.div
@@ -123,9 +123,10 @@ export default function AboutSection() {
                 >
                   {[
                     "علم النحو والإعراب",
-                    "علم الصرف والأوزان",
                     "علم البلاغة (المعاني والبيان والبديع)",
                     "الأدب العربي والشعر",
+                    "النصوص الأدبية والشعرية",
+                    "القراءة والفهم",
                   ].map((item, index) => (
                     <motion.li
                       key={index}
@@ -161,7 +162,6 @@ export default function AboutSection() {
                   viewport={{ margin: "-50px" }}
                 >
                   {[
-                    "درجة علمية من الأزهر الشريف",
                     "شهادات في طرق التدريس الحديثة",
                     "خبرة في التعليم الإلكتروني",
                   ].map((item, index) => (

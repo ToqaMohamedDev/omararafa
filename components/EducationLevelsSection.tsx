@@ -10,14 +10,14 @@ export default function EducationLevelsSection() {
       description: "من الصف الأول إلى الصف الثالث الإعدادي",
       icon: GraduationCap,
       color: "from-primary-500 to-primary-600",
-      subjects: ["النحو المتقدم", "الصرف", "البلاغة", "الأدب"],
+      subjects: ["النحو المتقدم", "البلاغة", "الأدب", "النصوص", "القراءة"],
     },
     {
       title: "المرحلة الثانوية",
       description: "من الصف الأول إلى الصف الثالث الثانوي",
       icon: Award,
       color: "from-primary-600 to-primary-700",
-      subjects: ["النحو الشامل", "الصرف المتقدم", "البلاغة الكاملة", "الأدب والنقد"],
+      subjects: ["النحو الشامل", "البلاغة الكاملة", "الأدب والنقد", "النصوص", "القراءة"],
     },
   ];
 

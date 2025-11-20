@@ -2,13 +2,16 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase-client";
+import { auth, db } from "@/lib/firebase-client";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 interface User {
   uid?: string;
   name: string;
   email: string;
   photoURL?: string;
+  phone?: string;
+  birthDate?: string;
 }
 
 interface SessionContextType {
@@ -39,34 +42,75 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
         email: data.email || firebaseUser.email || "",
         name: data.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
         photoURL: data.photoURL || firebaseUser.photoURL,
+        phone: data.phone || "",
+        birthDate: data.birthDate || "",
       };
     }
     // إذا كان الخطأ 503 (Service Unavailable)، يعني Firebase Admin غير مهيأ
-    // لكن المستخدم موجود في Firebase Client، لذا نعيد بياناته من Firebase Client
-    if (response.status === 503) {
-      // في بيئة التطوير المحلية، Firebase Admin قد لا يكون مهيأ
-      // هذا طبيعي ولا يحتاج إلى warning
-      if (process.env.NODE_ENV === "development") {
-        // صامت في بيئة التطوير
-      } else {
-        console.warn("Firebase Admin not initialized, using client-side user data");
+    // جرب جلب البيانات من Firestore مباشرة
+    if (response.status === 503 && db) {
+      try {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          return {
+            uid: firebaseUser.uid,
+            email: userData.email || firebaseUser.email || "",
+            name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+            photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+            phone: userData.phone || "",
+            birthDate: userData.birthDate || "",
+          };
+        }
+      } catch (firestoreError) {
+        console.warn("Error fetching user from Firestore:", firestoreError);
       }
+      
+      // إذا لم توجد بيانات في Firestore، نعيد بيانات Firebase Client
       return {
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",
         name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
         photoURL: firebaseUser.photoURL || undefined,
+        phone: "",
+        birthDate: "",
       };
     }
     return null;
   } catch (error) {
     console.error("Error verifying user:", error);
+    // في حالة الخطأ، جرب جلب البيانات من Firestore مباشرة
+    if (db) {
+      try {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          return {
+            uid: firebaseUser.uid,
+            email: userData.email || firebaseUser.email || "",
+            name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+            photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+            phone: userData.phone || "",
+            birthDate: userData.birthDate || "",
+          };
+        }
+      } catch (firestoreError) {
+        console.warn("Error fetching user from Firestore:", firestoreError);
+      }
+    }
+    
     // في حالة الخطأ، نعيد بيانات المستخدم من Firebase Client
     return {
       uid: firebaseUser.uid,
       email: firebaseUser.email || "",
       name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
       photoURL: firebaseUser.photoURL || undefined,
+      phone: "",
+      birthDate: "",
     };
   }
 };
@@ -85,9 +129,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
-        if (isMounted && parsedUser && parsedUser.email) {
+        // التحقق من وجود phone و birthDate في localStorage أيضاً
+        if (isMounted && parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
           setUser(parsedUser);
           // لا نوقف loading هنا - ننتظر Firebase
+        } else if (isMounted && parsedUser && parsedUser.email) {
+          // إذا كانت البيانات غير مكتملة، احذف من localStorage
+          localStorage.removeItem("user");
         }
       } catch (error) {
         console.error("Error loading user from storage:", error);
@@ -103,13 +151,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (savedUser) {
           try {
             const parsedUser = JSON.parse(savedUser);
-            if (parsedUser && parsedUser.email) {
+            // التحقق من وجود phone و birthDate
+            if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
               setUser(parsedUser);
             } else {
+              // إذا كانت البيانات غير مكتملة، احذف من localStorage
+              localStorage.removeItem("user");
               setUser(null);
             }
           } catch (e) {
             setUser(null);
+            localStorage.removeItem("user");
           }
         } else {
           setUser(null);
@@ -131,8 +183,61 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           try {
             const userData = await verifyUser(firebaseUser);
             if (userData && isMounted) {
+              // التحقق من وجود phone و birthDate
+              if (!userData.phone || !userData.birthDate) {
+                // إذا لم تكن البيانات موجودة، سجل الخروج
+                console.log("User data incomplete - logging out");
+                await firebaseSignOut(auth);
+                setUser(null);
+                localStorage.removeItem("user");
+                
+                // إعادة التوجيه إلى صفحة تسجيل الدخول مع رسالة
+                if (typeof window !== "undefined") {
+                  const currentPath = window.location.pathname;
+                  if (!currentPath.includes("/auth/")) {
+                    window.location.href = "/auth/login?message=complete_profile";
+                  }
+                }
+                return;
+              }
+              
               setUser(userData);
               localStorage.setItem("user", JSON.stringify(userData));
+              
+              // حفظ/تحديث البيانات في Firestore مباشرة (fallback إذا كان Admin غير متاح)
+              if (db && userData.uid) {
+                try {
+                  const userRef = doc(db, "users", userData.uid);
+                  const userDoc = await getDoc(userRef);
+                  
+                  if (!userDoc.exists()) {
+                    // إنشاء مستخدم جديد
+                    await setDoc(userRef, {
+                      name: userData.name,
+                      email: userData.email,
+                      photoURL: userData.photoURL || "",
+                      phone: userData.phone || "",
+                      birthDate: userData.birthDate || "",
+                      createdAt: serverTimestamp(),
+                      updatedAt: serverTimestamp(),
+                    });
+                  } else {
+                    // تحديث بيانات المستخدم (الحفاظ على phone و birthDate إذا كانت موجودة)
+                    const existingData = userDoc.data();
+                    await updateDoc(userRef, {
+                      name: userData.name,
+                      email: userData.email,
+                      photoURL: userData.photoURL || existingData?.photoURL || "",
+                      phone: existingData?.phone || userData.phone || "",
+                      birthDate: existingData?.birthDate || userData.birthDate || "",
+                      updatedAt: serverTimestamp(),
+                    });
+                  }
+                } catch (firestoreError) {
+                  console.warn("Error saving user to Firestore (client-side):", firestoreError);
+                  // لا نوقف العملية، فقط نعرض warning
+                }
+              }
             } else if (isMounted) {
               // إذا فشل التحقق، احذف من localStorage
               setUser(null);
@@ -140,12 +245,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             }
           } catch (error) {
             console.error("Error in auth state change:", error);
-            // في حالة الخطأ، احتفظ بالبيانات من localStorage إذا كانت موجودة
+            // في حالة الخطأ، احتفظ بالبيانات من localStorage إذا كانت موجودة ومكتملة
             const savedUser = localStorage.getItem("user");
             if (savedUser && isMounted) {
               try {
                 const parsedUser = JSON.parse(savedUser);
-                if (parsedUser && parsedUser.email) {
+                // التحقق من وجود phone و birthDate
+                if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
                   setUser(parsedUser);
                 } else {
                   setUser(null);
@@ -175,12 +281,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         console.error("Auth state change error:", error);
         if (isMounted) {
           authStateChecked.current = true;
-          // في حالة الخطأ، استخدم localStorage كـ fallback
+          // في حالة الخطأ، استخدم localStorage كـ fallback (فقط إذا كانت البيانات مكتملة)
           const savedUser = localStorage.getItem("user");
           if (savedUser) {
             try {
               const parsedUser = JSON.parse(savedUser);
-              if (parsedUser && parsedUser.email) {
+              // التحقق من وجود phone و birthDate
+              if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
                 setUser(parsedUser);
               } else {
                 setUser(null);
@@ -209,7 +316,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (savedUser) {
           try {
             const parsedUser = JSON.parse(savedUser);
-            if (parsedUser && parsedUser.email) {
+            // التحقق من وجود phone و birthDate
+            if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
               setUser(parsedUser);
             } else {
               setUser(null);
@@ -243,8 +351,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     
     // حفظ في Firebase إذا كان هناك uid
     if (userData.uid) {
+      // محاولة استخدام API أولاً
       try {
-        await fetch(`/api/users/${userData.uid}`, {
+        const response = await fetch(`/api/users/${userData.uid}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -252,10 +361,76 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({
             name: userData.name,
             email: userData.email,
+            photoURL: userData.photoURL || "",
+            phone: userData.phone || "",
+            birthDate: userData.birthDate || "",
           }),
         });
+        
+        // إذا فشل API (503)، استخدم Client-side Firestore مباشرة
+        if (!response.ok && response.status === 503 && db) {
+          try {
+            const userRef = doc(db, "users", userData.uid);
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists()) {
+              await setDoc(userRef, {
+                name: userData.name,
+                email: userData.email,
+                photoURL: userData.photoURL || "",
+                phone: userData.phone || "",
+                birthDate: userData.birthDate || "",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            } else {
+              const existingData = userDoc.data();
+              await updateDoc(userRef, {
+                name: userData.name,
+                email: userData.email,
+                photoURL: userData.photoURL || existingData?.photoURL || "",
+                phone: existingData?.phone || userData.phone || "",
+                birthDate: existingData?.birthDate || userData.birthDate || "",
+                updatedAt: serverTimestamp(),
+              });
+            }
+          } catch (firestoreError) {
+            console.warn("Error saving user to Firestore (client-side fallback):", firestoreError);
+          }
+        }
       } catch (error) {
         console.error("Error updating user in Firebase:", error);
+        // Fallback إلى Client-side Firestore
+        if (db) {
+          try {
+            const userRef = doc(db, "users", userData.uid);
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists()) {
+              await setDoc(userRef, {
+                name: userData.name,
+                email: userData.email,
+                photoURL: userData.photoURL || "",
+                phone: userData.phone || "",
+                birthDate: userData.birthDate || "",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            } else {
+              const existingData = userDoc.data();
+              await updateDoc(userRef, {
+                name: userData.name,
+                email: userData.email,
+                photoURL: userData.photoURL || existingData?.photoURL || "",
+                phone: existingData?.phone || userData.phone || "",
+                birthDate: existingData?.birthDate || userData.birthDate || "",
+                updatedAt: serverTimestamp(),
+              });
+            }
+          } catch (firestoreError) {
+            console.warn("Error saving user to Firestore (client-side fallback):", firestoreError);
+          }
+        }
       }
     }
   };
@@ -289,10 +464,56 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const newUserData = { ...user, ...updatedUser };
         setUser(newUserData);
         localStorage.setItem("user", JSON.stringify(newUserData));
+      } else if (response.status === 503 && db) {
+        // Fallback إلى Client-side Firestore إذا كان Admin غير متاح
+        try {
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, {
+            ...userData,
+            updatedAt: serverTimestamp(),
+          });
+          
+          // جلب البيانات المحدثة
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const updatedData = userDoc.data();
+            const newUserData = { ...user, ...updatedData };
+            setUser(newUserData);
+            localStorage.setItem("user", JSON.stringify(newUserData));
+          }
+        } catch (firestoreError) {
+          console.error("Error updating user in Firestore (client-side):", firestoreError);
+          throw firestoreError;
+        }
+      } else {
+        throw new Error("Failed to update user");
       }
     } catch (error) {
       console.error("Error updating user:", error);
-      throw error;
+      // Fallback إلى Client-side Firestore
+      if (db) {
+        try {
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, {
+            ...userData,
+            updatedAt: serverTimestamp(),
+          });
+          
+          // جلب البيانات المحدثة
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const updatedData = userDoc.data();
+            const newUserData = { ...user, ...updatedData };
+            setUser(newUserData);
+            localStorage.setItem("user", JSON.stringify(newUserData));
+          }
+        } catch (firestoreError) {
+          console.error("Error updating user in Firestore (client-side fallback):", firestoreError);
+          throw firestoreError;
+        }
+      } else {
+        throw error;
+      }
     }
   };
 

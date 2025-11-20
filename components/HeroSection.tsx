@@ -86,7 +86,7 @@ export default function HeroSection() {
         >
           <Sparkles className="w-4 h-4 text-primary-DEFAULT" />
           <span className="text-primary-DEFAULT font-semibold text-sm">
-            مدرس لغة عربية أزهري
+            مدرس لغة عربية
           </span>
         </motion.div>
         <motion.h1
@@ -99,7 +99,7 @@ export default function HeroSection() {
           variants={itemVariants}
           className="text-4xl md:text-6xl font-bold mb-8 text-gradient"
         >
-          الأستاذ عمر عرفه
+          الأستاذ عمر عرفة
         </motion.h2>
         <motion.div
           variants={itemVariants}
@@ -109,13 +109,13 @@ export default function HeroSection() {
           variants={itemVariants}
           className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 mb-6 max-w-3xl mx-auto leading-relaxed font-medium"
         >
-          مدرس لغة عربية أزهري بخبرة تزيد عن 7 سنوات في تدريس اللغة العربية
+          مدرس لغة عربية بخبرة تزيد عن 9 سنوات في تدريس اللغة العربية
         </motion.p>
         <motion.p
           variants={itemVariants}
           className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-12"
         >
-          متخصص في النحو والصرف والبلاغة والإعراب - تعلم بطريقة سهلة ومبسطة
+          متخصص في النحو والبلاغة والأدب والنصوص والقراءة - تعلم بطريقة سهلة ومبسطة
         </motion.p>
       </div>
 

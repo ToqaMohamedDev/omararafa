@@ -23,30 +23,42 @@ export async function POST(request: NextRequest) {
         
         const userName = name || decodedToken.name || decodedToken.email?.split("@")[0] || "مستخدم";
         
+        const existingData = userDoc.exists ? userDoc.data() : {};
+        
         if (!userDoc.exists) {
           // إنشاء مستخدم جديد في Firestore
           await adminFirestore.collection("users").doc(decodedToken.uid).set({
             name: userName,
             email: decodedToken.email,
             photoURL: decodedToken.picture,
+            phone: existingData.phone || "",
+            birthDate: existingData.birthDate || "",
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           });
         } else {
-          // تحديث بيانات المستخدم
+          // تحديث بيانات المستخدم (الحفاظ على phone و birthDate إذا كانت موجودة)
           await adminFirestore.collection("users").doc(decodedToken.uid).update({
             name: userName,
             email: decodedToken.email,
-            photoURL: decodedToken.picture || userDoc.data()?.photoURL,
+            photoURL: decodedToken.picture || existingData.photoURL,
+            phone: existingData.phone || "",
+            birthDate: existingData.birthDate || "",
             updatedAt: FieldValue.serverTimestamp(),
           });
         }
+        
+        // جلب البيانات المحدثة من Firestore
+        const updatedDoc = await adminFirestore.collection("users").doc(decodedToken.uid).get();
+        const userData = updatedDoc.exists ? updatedDoc.data() : {};
         
         return NextResponse.json({
           uid: decodedToken.uid,
           email: decodedToken.email,
           name: userName,
           photoURL: decodedToken.picture,
+          phone: userData?.phone || "",
+          birthDate: userData?.birthDate || "",
         });
       } catch (error: any) {
         console.error("Firebase Admin auth error:", error);

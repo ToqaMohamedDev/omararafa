@@ -58,14 +58,14 @@ export default function ContactPage() {
     {
       icon: Phone,
       title: "الهاتف",
-      content: "+20 123 456 7890",
+      content: "01146525436",
       description: "اتصل بنا في أوقات العمل",
     },
     {
       icon: MapPin,
       title: "العنوان",
       content: "القاهرة، مصر",
-      description: "الأزهر الشريف",
+      description: "القاهرة، مصر",
     },
     {
       icon: Clock,
@@ -115,7 +115,7 @@ export default function ContactPage() {
           transition={{ duration: 0.6, delay: 0.2 }}
         ></motion.div>
         <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          نحن هنا لمساعدتك! تواصل مع الأستاذ عمر عرفه لأي استفسار أو سؤال
+          نحن هنا لمساعدتك! تواصل مع الأستاذ عمر عرفة لأي استفسار أو سؤال
         </p>
       </motion.div>
 
@@ -184,16 +184,13 @@ export default function ContactPage() {
             </h3>
             <div className="space-y-2 text-gray-700 dark:text-gray-300">
               <p>
-                <strong className="text-primary-DEFAULT">الاسم:</strong> عمر عرفه
+                <strong className="text-primary-DEFAULT">الاسم:</strong> عمر عرفة
               </p>
               <p>
-                <strong className="text-primary-DEFAULT">التخصص:</strong> مدرس لغة عربية أزهري
+                <strong className="text-primary-DEFAULT">التخصص:</strong> مدرس لغة عربية
               </p>
               <p>
-                <strong className="text-primary-DEFAULT">سنوات الخبرة:</strong> 7 سنوات
-              </p>
-              <p>
-                <strong className="text-primary-DEFAULT">المؤسسة:</strong> الأزهر الشريف
+                <strong className="text-primary-DEFAULT">سنوات الخبرة:</strong> 9 سنوات
               </p>
             </div>
           </motion.div>
@@ -284,7 +281,7 @@ export default function ContactPage() {
                       setFormData({ ...formData, phone: e.target.value })
                     }
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                    placeholder="+20 123 456 7890"
+                    placeholder="01146525436"
                   />
                 </div>
 
