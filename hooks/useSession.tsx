@@ -187,7 +187,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               if (!userData.phone || !userData.birthDate) {
                 // إذا لم تكن البيانات موجودة، سجل الخروج
                 console.log("User data incomplete - logging out");
-                await firebaseSignOut(auth);
+                if (auth) {
+                  await firebaseSignOut(auth);
+                }
                 setUser(null);
                 localStorage.removeItem("user");
                 
