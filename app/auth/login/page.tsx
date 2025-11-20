@@ -161,7 +161,9 @@ const saveUserDataWithRetry = async (
     try {
       // انتظر حتى يكون auth.currentUser جاهز (بحد أقصى 3 ثوان)
       currentUser = await waitForAuth(3000);
-      console.log("✅ تم الحصول على auth.currentUser:", currentUser.uid);
+      if (currentUser) {
+        console.log("✅ تم الحصول على auth.currentUser:", currentUser.uid);
+      }
     } catch (waitError) {
       console.warn("⚠️ لم يتم الحصول على auth.currentUser في الوقت المحدد:", waitError);
       // إذا فشل waitForAuth، انتظر قليلاً ثم حاول مرة أخرى
