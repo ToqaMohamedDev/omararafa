@@ -10,6 +10,99 @@ import { signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase
 import { auth, googleProvider, db } from "@/lib/firebase-client";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
+// دالة للانتظار حتى يكون auth.currentUser جاهز
+const waitForAuth = (maxWait = 5000): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if (!auth) {
+      reject(new Error("Firebase Auth غير مهيأ"));
+      return;
+    }
+    
+    if (auth.currentUser) {
+      resolve(auth.currentUser);
+      return;
+    }
+    
+    let unsubscribe: (() => void) | null = null;
+    
+    const timeout = setTimeout(() => {
+      if (unsubscribe) unsubscribe();
+      reject(new Error("انتهت مهلة انتظار تسجيل الدخول"));
+    }, maxWait);
+    
+    unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        clearTimeout(timeout);
+        if (unsubscribe) unsubscribe();
+        resolve(user);
+      }
+    });
+  });
+};
+
+// دالة لحفظ البيانات مع retry mechanism
+const saveUserDataWithRetry = async (
+  uid: string,
+  userData: {
+    name: string;
+    email: string;
+    photoURL?: string;
+    phone: string;
+    birthDate: string;
+  },
+  maxRetries = 3
+): Promise<void> => {
+  if (!db) {
+    throw new Error("Firestore غير مهيأ");
+  }
+
+  const userRef = doc(db, "users", uid);
+  let lastError: any = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        await updateDoc(userRef, {
+          phone: userData.phone.trim(),
+          birthDate: userData.birthDate.trim(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await setDoc(userRef, {
+          name: userData.name,
+          email: userData.email,
+          photoURL: userData.photoURL || "",
+          phone: userData.phone.trim(),
+          birthDate: userData.birthDate.trim(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      // نجح الحفظ
+      return;
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`محاولة حفظ البيانات ${attempt}/${maxRetries} فشلت:`, error);
+      
+      // إذا كان الخطأ permission-denied، لا نحاول مرة أخرى
+      if (error.code === "permission-denied") {
+        throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
+      }
+      
+      // انتظر قليلاً قبل المحاولة التالية
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  // فشلت جميع المحاولات
+  throw lastError || new Error("فشل حفظ البيانات بعد عدة محاولات");
+};
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -275,7 +368,7 @@ function LoginForm() {
     }
 
     try {
-      // حفظ البيانات في Firestore
+      // التحقق من أن Firestore مهيأ
       if (!db) {
         throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
       }
@@ -284,35 +377,34 @@ function LoginForm() {
         throw new Error("بيانات المستخدم غير صحيحة. يرجى المحاولة مرة أخرى");
       }
 
-      const userRef = doc(db, "users", googleUserData.uid);
-      
-      // محاولة حفظ البيانات
+      // الانتظار حتى يكون auth.currentUser جاهز
+      let firebaseUser;
       try {
-        const userDoc = await getDoc(userRef);
-        
-        if (userDoc.exists()) {
-          await updateDoc(userRef, {
-            phone: phone.trim(),
-            birthDate: birthDate.trim(),
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          await setDoc(userRef, {
-            name: googleUserData.name,
-            email: googleUserData.email,
-            photoURL: googleUserData.photoURL || "",
-            phone: phone.trim(),
-            birthDate: birthDate.trim(),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-      } catch (firestoreError: any) {
-        console.error("Firestore error:", firestoreError);
-        // إذا كان الخطأ permission-denied، حاول استخدام API كـ fallback
-        if (firestoreError.code === "permission-denied") {
+        firebaseUser = await waitForAuth(5000);
+      } catch (waitError) {
+        // إذا فشل الانتظار، استخدم googleUserData
+        console.warn("لم يتم العثور على auth.currentUser، استخدام googleUserData");
+        firebaseUser = null;
+      }
+
+      // استخدام firebaseUser إذا كان متاحاً، وإلا استخدم googleUserData
+      const uid = firebaseUser?.uid || googleUserData.uid;
+      const finalUserData = {
+        name: firebaseUser?.displayName || googleUserData.name || "مستخدم",
+        email: firebaseUser?.email || googleUserData.email || "",
+        photoURL: firebaseUser?.photoURL || googleUserData.photoURL || "",
+        phone: phone.trim(),
+        birthDate: birthDate.trim(),
+      };
+
+      // حفظ البيانات مع retry mechanism
+      try {
+        await saveUserDataWithRetry(uid, finalUserData, 3);
+      } catch (saveError: any) {
+        // إذا فشل الحفظ، حاول استخدام API كـ fallback
+        if (saveError.code === "permission-denied" || saveError.message?.includes("صلاحية")) {
           try {
-            const response = await fetch(`/api/users/${googleUserData.uid}`, {
+            const response = await fetch(`/api/users/${uid}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
@@ -330,18 +422,18 @@ function LoginForm() {
             throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
           }
         } else {
-          throw firestoreError;
+          throw saveError;
         }
       }
 
       // تسجيل الدخول
       login({
-        uid: googleUserData.uid,
-        email: googleUserData.email || "",
-        name: googleUserData.name || "مستخدم",
-        photoURL: googleUserData.photoURL || undefined,
-        phone: phone.trim(),
-        birthDate: birthDate.trim(),
+        uid: uid,
+        email: finalUserData.email,
+        name: finalUserData.name,
+        photoURL: finalUserData.photoURL || undefined,
+        phone: finalUserData.phone,
+        birthDate: finalUserData.birthDate,
       });
       
       router.push("/");
@@ -349,7 +441,7 @@ function LoginForm() {
       console.error("Error saving Google user data:", err);
       let errorMessage = "حدث خطأ أثناء حفظ البيانات";
       
-      if (err.code === "permission-denied") {
+      if (err.code === "permission-denied" || err.message?.includes("صلاحية")) {
         errorMessage = "ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules";
       } else if (err.code === "unavailable") {
         errorMessage = "خدمة Firestore غير متاحة حالياً. يرجى المحاولة مرة أخرى";
