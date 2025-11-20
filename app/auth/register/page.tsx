@@ -162,6 +162,16 @@ const saveUserDataWithRetry = async (
     throw new Error("Firestore غير مهيأ");
   }
 
+  // التحقق من أن المستخدم مسجل دخول
+  if (!auth || !auth.currentUser) {
+    throw new Error("المستخدم غير مسجل دخول. يرجى تسجيل الدخول أولاً");
+  }
+
+  // التأكد من أن UID يطابق المستخدم الحالي
+  if (auth.currentUser.uid !== uid) {
+    throw new Error("UID غير متطابق مع المستخدم الحالي");
+  }
+
   const userRef = doc(db, "users", uid);
   let lastError: any = null;
 
@@ -194,6 +204,7 @@ const saveUserDataWithRetry = async (
       }
       
       // نجح الحفظ
+      console.log(`✅ تم حفظ البيانات بنجاح (محاولة ${attempt}/${maxRetries})`);
       return;
     } catch (error: any) {
       lastError = error;
@@ -201,7 +212,14 @@ const saveUserDataWithRetry = async (
       
       // إذا كان الخطأ permission-denied، لا نحاول مرة أخرى
       if (error.code === "permission-denied") {
-        throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
+        console.error("❌ خطأ في الصلاحيات:", {
+          code: error.code,
+          message: error.message,
+          uid: uid,
+          currentUser: auth.currentUser?.uid,
+          isAuthenticated: !!auth.currentUser
+        });
+        throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules في Firebase Console. راجع ملف FIRESTORE-SECURITY-RULES.md");
       }
       
       // انتظر قليلاً قبل المحاولة التالية
