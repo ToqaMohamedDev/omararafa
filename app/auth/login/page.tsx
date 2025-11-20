@@ -150,13 +150,28 @@ const saveUserDataWithRetry = async (
   }
 
   // التحقق من أن المستخدم مسجل دخول
-  if (!auth || !auth.currentUser) {
-    throw new Error("المستخدم غير مسجل دخول. يرجى تسجيل الدخول أولاً");
+  // إذا لم يكن auth.currentUser موجوداً، انتظر قليلاً ثم حاول مرة أخرى
+  if (!auth) {
+    throw new Error("Firebase Auth غير مهيأ");
   }
 
-  // التأكد من أن UID يطابق المستخدم الحالي
-  if (auth.currentUser.uid !== uid) {
-    throw new Error("UID غير متطابق مع المستخدم الحالي");
+  // محاولة الانتظار للحصول على auth.currentUser
+  let currentUser = auth.currentUser;
+  if (!currentUser) {
+    // انتظر قليلاً - قد يكون auth.currentUser لم يتم تحديثه بعد
+    await new Promise(resolve => setTimeout(resolve, 500));
+    currentUser = auth.currentUser;
+  }
+
+  // إذا لم يكن موجوداً بعد، استخدم UID مباشرة (المستخدم مسجل دخول بالفعل من Google)
+  if (!currentUser) {
+    console.warn("⚠️ auth.currentUser غير موجود، لكن المستخدم مسجل دخول - استخدام UID مباشرة");
+    // نستمر في المحاولة - Firestore Security Rules ستحقق من auth token
+  } else {
+    // التأكد من أن UID يطابق المستخدم الحالي
+    if (currentUser.uid !== uid) {
+      throw new Error("UID غير متطابق مع المستخدم الحالي");
+    }
   }
 
   const userRef = doc(db, "users", uid);

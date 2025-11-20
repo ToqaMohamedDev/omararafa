@@ -185,20 +185,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             if (userData && isMounted) {
               // التحقق من وجود phone و birthDate
               if (!userData.phone || !userData.birthDate) {
-                // إذا لم تكن البيانات موجودة، سجل الخروج
-                console.log("User data incomplete - logging out");
-                if (auth) {
-                  await firebaseSignOut(auth);
-                }
-                setUser(null);
-                localStorage.removeItem("user");
-                
-                // إعادة التوجيه إلى صفحة تسجيل الدخول مع رسالة
+                // إذا لم تكن البيانات موجودة، تحقق من الصفحة الحالية
                 if (typeof window !== "undefined") {
                   const currentPath = window.location.pathname;
-                  if (!currentPath.includes("/auth/")) {
-                    window.location.href = "/auth/login?message=complete_profile";
+                  
+                  // إذا كان المستخدم في صفحة auth (login/register)، لا تسجل خروجه
+                  // دع المستخدم يكمل بياناته
+                  if (currentPath.includes("/auth/")) {
+                    console.log("⚠️ بيانات ناقصة - المستخدم في صفحة auth، لا تسجيل خروج");
+                    // لا تسجل خروج - دع المستخدم يكمل بياناته
+                    setUser(null);
+                    localStorage.removeItem("user");
+                    return;
                   }
+                  
+                  // إذا كان المستخدم في صفحة أخرى، سجل خروجه وأعد التوجيه
+                  console.log("User data incomplete - logging out");
+                  if (auth) {
+                    await firebaseSignOut(auth);
+                  }
+                  setUser(null);
+                  localStorage.removeItem("user");
+                  window.location.href = "/auth/login?message=complete_profile";
+                } else {
+                  // في SSR، فقط احذف البيانات
+                  setUser(null);
+                  localStorage.removeItem("user");
                 }
                 return;
               }
