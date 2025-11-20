@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useRef } fro
 import { onAuthStateChanged, signOut as firebaseSignOut, User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "@/lib/firebase-client";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { usePathname } from "next/navigation";
 
 interface User {
   uid?: string;
@@ -119,6 +120,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const authStateChecked = useRef(false);
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -188,7 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 // إذا لم تكن البيانات موجودة، تحقق من الصفحة الحالية
                 if (typeof window !== "undefined") {
                   // استخدام عدة طرق للتحقق من الصفحة الحالية
-                  const currentPath = window.location.pathname || window.location.href;
+                  const currentPath = window.location.pathname || window.location.href || pathname;
                   const isAuthPage = currentPath.includes("/auth/login") || 
                                     currentPath.includes("/auth/register") ||
                                     currentPath.includes("/auth/");
@@ -199,12 +201,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                     console.log("⚠️ بيانات ناقصة - المستخدم في صفحة auth، لا تسجيل خروج", {
                       path: currentPath,
                       hasPhone: !!userData.phone,
-                      hasBirthDate: !!userData.birthDate
+                      hasBirthDate: !!userData.birthDate,
+                      firebaseUser: firebaseUser?.uid
                     });
                     // لا تسجل خروج - دع المستخدم يكمل بياناته
-                    // لكن نحافظ على firebaseUser موجوداً
+                    // نحافظ على firebaseUser موجوداً (لا نسجل خروج)
                     setUser(null);
                     localStorage.removeItem("user");
+                    // لا نعود هنا - نترك firebaseUser موجوداً
                     return;
                   }
                   
