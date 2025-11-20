@@ -392,12 +392,38 @@ function LoginForm() {
         birthDate: birthDate.trim(),
       };
 
+      console.log("🔄 محاولة حفظ البيانات:", { uid, phone: finalUserData.phone, birthDate: finalUserData.birthDate });
+
       // المرحلة 6: حفظ البيانات في Firestore
       try {
         await saveUserDataWithRetry(uid, finalUserData, 3);
+        console.log("✅ تم حفظ البيانات في Firestore بنجاح");
+        
+        // التحقق من أن البيانات تم حفظها بالفعل
+        const userRef = doc(db, "users", uid);
+        const verifyDoc = await getDoc(userRef);
+        
+        if (!verifyDoc.exists()) {
+          throw new Error("فشل التحقق من حفظ البيانات");
+        }
+        
+        const savedData = verifyDoc.data();
+        console.log("✅ تم التحقق من البيانات المحفوظة:", {
+          phone: savedData.phone,
+          birthDate: savedData.birthDate
+        });
+        
+        // التأكد من أن البيانات المحفوظة هي نفس البيانات المدخلة
+        if (savedData.phone !== finalUserData.phone || savedData.birthDate !== finalUserData.birthDate) {
+          throw new Error("البيانات المحفوظة لا تطابق البيانات المدخلة");
+        }
+        
       } catch (saveError: any) {
+        console.error("❌ خطأ في حفظ البيانات:", saveError);
+        
         // إذا فشل الحفظ، حاول استخدام API كـ fallback
         if (saveError.code === "permission-denied" || saveError.message?.includes("صلاحية")) {
+          console.warn("⚠️ محاولة استخدام API كـ fallback");
           try {
             const response = await fetch(`/api/users/${uid}`, {
               method: "PUT",
@@ -413,7 +439,9 @@ function LoginForm() {
             if (!response.ok && response.status !== 503) {
               throw new Error("فشل حفظ البيانات عبر API");
             }
+            console.log("✅ تم حفظ البيانات عبر API");
           } catch (apiError) {
+            console.error("❌ فشل حفظ البيانات عبر API:", apiError);
             throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
           }
         } else {
@@ -421,7 +449,10 @@ function LoginForm() {
         }
       }
 
-      // بعد نجاح الحفظ: تسجيل الدخول والدخول للتطبيق
+      // ✅ نجح الحفظ - الآن قم بتسجيل الدخول وإغلاق Modal
+      console.log("✅ تسجيل الدخول وإغلاق Modal");
+      
+      // تحديث Session
       login({
         uid: uid,
         email: finalUserData.email,
@@ -431,9 +462,18 @@ function LoginForm() {
         birthDate: finalUserData.birthDate,
       });
       
+      // إغلاق Modal
+      setShowGoogleForm(false);
+      setIsLoading(false);
+      
+      // الانتظار قليلاً قبل الانتقال لضمان تحديث الـ state
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // الانتقال للصفحة الرئيسية
       router.push("/");
+      
     } catch (err: any) {
-      console.error("Error saving Google user data:", err);
+      console.error("❌ Error saving Google user data:", err);
       let errorMessage = "حدث خطأ أثناء حفظ البيانات";
       
       if (err.code === "permission-denied" || err.message?.includes("صلاحية")) {
@@ -448,6 +488,7 @@ function LoginForm() {
       
       setError(errorMessage);
       setIsLoading(false);
+      // لا تغلق Modal عند حدوث خطأ
     }
   };
 
