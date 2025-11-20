@@ -40,6 +40,15 @@ export async function PUT(
 ) {
   try {
     if (!checkFirebaseAdmin() || !adminFirestore || !FieldValue) {
+      // في development، Firebase Admin قد لا يكون مهيأ - هذا طبيعي
+      // Client-side سيتعامل مع الحفظ مباشرة
+      if (process.env.NODE_ENV === "development") {
+        // لا نطبع خطأ في development - هذا متوقع
+        return NextResponse.json(
+          { error: "Firebase Admin not initialized", fallback: true },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { error: "Firebase Admin not initialized" },
         { status: 503 }

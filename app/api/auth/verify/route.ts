@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
         // لكن في server-side، لا يمكننا استخدام Firebase Client SDK
         // لذا نعيد 503 مع رسالة واضحة
         // Client-side سيتعامل مع هذا ويستخدم بيانات Firebase Client
+        // في development، هذا طبيعي - لا نطبع خطأ
+        if (process.env.NODE_ENV === "development") {
+          // لا نطبع خطأ في development - هذا متوقع
+        }
         return NextResponse.json(
           { error: "Firebase Admin not initialized", fallback: true },
           { status: 503 }
