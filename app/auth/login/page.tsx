@@ -40,6 +40,63 @@ const waitForAuth = (maxWait = 5000): Promise<any> => {
   });
 };
 
+// دالة للتحقق من اكتمال بيانات المستخدم
+const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missingFields: string[] } => {
+  const requiredFields = {
+    phone: userData?.phone,
+    birthDate: userData?.birthDate,
+  };
+  
+  const missingFields: string[] = [];
+  
+  // التحقق من الحقول الإلزامية
+  if (!requiredFields.phone || requiredFields.phone.trim() === "") {
+    missingFields.push("phone");
+  }
+  if (!requiredFields.birthDate || requiredFields.birthDate.trim() === "") {
+    missingFields.push("birthDate");
+  }
+  
+  return {
+    isComplete: missingFields.length === 0,
+    missingFields,
+  };
+};
+
+// دالة للتحقق من وجود واكتمال بيانات المستخدم في Firestore
+const checkFirestoreUserData = async (uid: string): Promise<{ exists: boolean; data: any; isComplete: boolean; missingFields: string[] }> => {
+  if (!db) {
+    throw new Error("Firestore غير مهيأ");
+  }
+
+  try {
+    const userRef = doc(db, "users", uid);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      return {
+        exists: false,
+        data: null,
+        isComplete: false,
+        missingFields: ["phone", "birthDate"],
+      };
+    }
+    
+    const userData = userDoc.data();
+    const completeness = checkUserDataCompleteness(userData);
+    
+    return {
+      exists: true,
+      data: userData,
+      isComplete: completeness.isComplete,
+      missingFields: completeness.missingFields,
+    };
+  } catch (error: any) {
+    console.error("Error checking Firestore user data:", error);
+    throw error;
+  }
+};
+
 // دالة لحفظ البيانات مع retry mechanism
 const saveUserDataWithRetry = async (
   uid: string,
@@ -64,12 +121,18 @@ const saveUserDataWithRetry = async (
       const userDoc = await getDoc(userRef);
       
       if (userDoc.exists()) {
+        // تحديث البيانات الموجودة (الحفاظ على البيانات الأخرى)
+        const existingData = userDoc.data();
         await updateDoc(userRef, {
+          name: userData.name || existingData.name || "",
+          email: userData.email || existingData.email || "",
+          photoURL: userData.photoURL || existingData.photoURL || "",
           phone: userData.phone.trim(),
           birthDate: userData.birthDate.trim(),
           updatedAt: serverTimestamp(),
         });
       } else {
+        // إنشاء مستخدم جديد
         await setDoc(userRef, {
           name: userData.name,
           email: userData.email,
@@ -123,6 +186,18 @@ function LoginForm() {
       setError("يرجى إكمال بياناتك (رقم التليفون وتاريخ الميلاد) قبل تسجيل الدخول");
     }
   }, [searchParams]);
+
+  // ملء الحقول عند فتح النموذج إذا كانت البيانات موجودة
+  useEffect(() => {
+    if (showGoogleForm && googleUserData) {
+      if (googleUserData.phone) {
+        setPhone(googleUserData.phone);
+      }
+      if (googleUserData.birthDate) {
+        setBirthDate(googleUserData.birthDate);
+      }
+    }
+  }, [showGoogleForm, googleUserData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,138 +274,58 @@ function LoginForm() {
         );
       }
 
-      // محاولة استخدام popup مع timeout
-      if (!auth || !googleProvider) {
-        setError("Firebase غير مهيأ. يرجى إعادة تحميل الصفحة.");
-        setIsLoading(false);
-        return;
+      if (!db) {
+        throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
       }
+
+      // المرحلة 1: تسجيل الدخول بـ Google
       const popupPromise = signInWithPopup(auth, googleProvider);
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("TIMEOUT")), 30000); // 30 ثانية timeout
+        setTimeout(() => reject(new Error("TIMEOUT")), 30000);
       });
 
       const result = await Promise.race([popupPromise, timeoutPromise]) as any;
-      const user = result.user;
-      
-      // الحصول على ID token مع timeout
-      const tokenPromise = user.getIdToken();
-      const tokenTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("TOKEN_TIMEOUT")), 10000); // 10 ثواني timeout
-      });
+      const firebaseUser = result.user;
+      const uid = firebaseUser.uid;
 
-      const idToken = await Promise.race([tokenPromise, tokenTimeoutPromise]) as string;
-      
-      // إرسال الـ token إلى API مع timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 ثانية timeout
+      // المرحلة 2: فحص Firestore مباشرة
+      const firestoreCheck = await checkFirestoreUserData(uid);
 
-      const response = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ idToken }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        // إذا كان هناك phone و birthDate محفوظين، سجل دخول مباشرة
-        if (data.phone && data.birthDate) {
-          login({
-            uid: data.uid,
-            email: data.email || "",
-            name: data.name || "مستخدم",
-            photoURL: data.photoURL || undefined,
-            phone: data.phone || "",
-            birthDate: data.birthDate || "",
-          });
-          router.push("/");
-        } else {
-          // إذا لم يكن هناك phone و birthDate، اعرض النموذج
-          setGoogleUserData({
-            uid: data.uid,
-            email: data.email || "",
-            name: data.name || "مستخدم",
-            photoURL: data.photoURL || undefined,
-            phone: data.phone || "",
-            birthDate: data.birthDate || "",
-          });
-          setShowGoogleForm(true);
-          setIsLoading(false);
-        }
-      } else {
-        // معالجة 503 بشكل خاص
-        if (response.status === 503) {
-          // في development، Firebase Admin قد لا يكون مهيأ
-          // لكن المستخدم مسجل دخول في Firebase Client، لذا نستخدم بياناته
-          const firebaseUser = result.user;
-          // حفظ البيانات في Firestore مباشرة
-          if (db) {
-            try {
-              const userRef = doc(db, "users", firebaseUser.uid);
-              const userDoc = await getDoc(userRef);
-              
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                if (userData.phone && userData.birthDate) {
-                  login({
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email || "",
-                    name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-                    photoURL: firebaseUser.photoURL || undefined,
-                    phone: userData.phone || "",
-                    birthDate: userData.birthDate || "",
-                  });
-                  router.push("/");
-                  return;
-                }
-              }
-              
-              // إذا لم تكن هناك بيانات، اعرض النموذج
-              setGoogleUserData({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || "",
-                name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-                photoURL: firebaseUser.photoURL || undefined,
-                phone: "",
-                birthDate: "",
-              });
-              setShowGoogleForm(true);
-              setIsLoading(false);
-              return;
-            } catch (firestoreError) {
-              console.warn("Error checking Firestore:", firestoreError);
-            }
-          }
-          
-          // Fallback: اعرض النموذج
-          setGoogleUserData({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || "",
-            name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-            photoURL: firebaseUser.photoURL || undefined,
-            phone: "",
-            birthDate: "",
-          });
-          setShowGoogleForm(true);
-          setIsLoading(false);
-          return;
-        }
-        const errorData = await response.json();
-        throw new Error(errorData.error || "حدث خطأ أثناء تسجيل الدخول بـ Google");
+      // المرحلة 3 & 5: إذا كانت البيانات كاملة → دخول مباشر
+      if (firestoreCheck.isComplete && firestoreCheck.data) {
+        const userData = firestoreCheck.data;
+        login({
+          uid: uid,
+          email: userData.email || firebaseUser.email || "",
+          name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+          photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+          phone: userData.phone || "",
+          birthDate: userData.birthDate || "",
+        });
+        router.push("/");
+        return;
       }
+
+      // المرحلة 4: البيانات ناقصة أو document غير موجود → عرض النموذج
+      const googleData = {
+        uid: uid,
+        email: firebaseUser.email || "",
+        name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+        photoURL: firebaseUser.photoURL || undefined,
+        // استخدم البيانات الموجودة من Firestore إذا كانت موجودة، وإلا استخدم قيم فارغة
+        phone: firestoreCheck.data?.phone || "",
+        birthDate: firestoreCheck.data?.birthDate || "",
+      };
+
+      setGoogleUserData(googleData);
+      setShowGoogleForm(true);
+      setIsLoading(false);
     } catch (err: any) {
       console.error("Google sign in error:", err);
       let errorMessage = "حدث خطأ أثناء تسجيل الدخول بـ Google";
       
       if (err.message === "TIMEOUT" || err.name === "AbortError") {
         errorMessage = "انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى أو التحقق من اتصال الإنترنت";
-      } else if (err.message === "TOKEN_TIMEOUT") {
-        errorMessage = "انتهت مهلة الحصول على رمز التحقق. يرجى المحاولة مرة أخرى";
       } else if (err.code === "auth/api-key-not-valid") {
         errorMessage = "مفتاح API غير صحيح. يرجى إضافة API keys الصحيحة في ملف .env.local";
       } else if (err.code === "auth/popup-closed-by-user") {
@@ -344,7 +339,6 @@ function LoginForm() {
       }
       
       setError(errorMessage);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -353,15 +347,20 @@ function LoginForm() {
     e.preventDefault();
     setError("");
     
-    // التحقق من أن الحقول مملوءة
-    if (!phone || !birthDate) {
-      setError("يرجى إدخال رقم التليفون وتاريخ الميلاد");
+    // التحقق من أن الحقول الإلزامية مملوءة
+    if (!phone || phone.trim() === "") {
+      setError("يرجى إدخال رقم التليفون");
+      return;
+    }
+
+    if (!birthDate || birthDate.trim() === "") {
+      setError("يرجى إدخال تاريخ الميلاد");
       return;
     }
 
     setIsLoading(true);
 
-    if (!googleUserData) {
+    if (!googleUserData || !googleUserData.uid) {
       setError("حدث خطأ. يرجى المحاولة مرة أخرى.");
       setIsLoading(false);
       return;
@@ -373,22 +372,18 @@ function LoginForm() {
         throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
       }
 
-      if (!googleUserData || !googleUserData.uid) {
-        throw new Error("بيانات المستخدم غير صحيحة. يرجى المحاولة مرة أخرى");
-      }
-
       // الانتظار حتى يكون auth.currentUser جاهز
       let firebaseUser;
       try {
         firebaseUser = await waitForAuth(5000);
       } catch (waitError) {
-        // إذا فشل الانتظار، استخدم googleUserData
         console.warn("لم يتم العثور على auth.currentUser، استخدام googleUserData");
         firebaseUser = null;
       }
 
-      // استخدام firebaseUser إذا كان متاحاً، وإلا استخدم googleUserData
       const uid = firebaseUser?.uid || googleUserData.uid;
+      
+      // استخدام البيانات من Google/Firebase مع البيانات المدخلة
       const finalUserData = {
         name: firebaseUser?.displayName || googleUserData.name || "مستخدم",
         email: firebaseUser?.email || googleUserData.email || "",
@@ -397,7 +392,7 @@ function LoginForm() {
         birthDate: birthDate.trim(),
       };
 
-      // حفظ البيانات مع retry mechanism
+      // المرحلة 6: حفظ البيانات في Firestore
       try {
         await saveUserDataWithRetry(uid, finalUserData, 3);
       } catch (saveError: any) {
@@ -426,7 +421,7 @@ function LoginForm() {
         }
       }
 
-      // تسجيل الدخول
+      // بعد نجاح الحفظ: تسجيل الدخول والدخول للتطبيق
       login({
         uid: uid,
         email: finalUserData.email,
