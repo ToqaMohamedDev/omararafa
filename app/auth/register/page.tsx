@@ -351,8 +351,8 @@ export default function RegisterPage() {
         throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
       }
 
-      if (!auth || !auth.currentUser) {
-        throw new Error("لم يتم تسجيل الدخول. يرجى المحاولة مرة أخرى");
+      if (!googleUserData || !googleUserData.uid) {
+        throw new Error("بيانات المستخدم غير صحيحة. يرجى المحاولة مرة أخرى");
       }
 
       const userRef = doc(db, "users", googleUserData.uid);
