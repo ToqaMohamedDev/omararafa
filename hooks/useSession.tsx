@@ -50,6 +50,11 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
     // إذا كان الخطأ 503 (Service Unavailable)، يعني Firebase Admin غير مهيأ
     // جرب جلب البيانات من Firestore مباشرة
     if (response.status === 503 && db) {
+      // في development، هذا متوقع - لا نطبع خطأ
+      if (process.env.NODE_ENV === "development") {
+        // صامت - هذا متوقع في development
+      }
+      
       try {
         const userRef = doc(db, "users", firebaseUser.uid);
         const userDoc = await getDoc(userRef);
@@ -66,7 +71,10 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
           };
         }
       } catch (firestoreError) {
-        console.warn("Error fetching user from Firestore:", firestoreError);
+        // في development، لا نطبع خطأ - هذا متوقع
+        if (process.env.NODE_ENV !== "development") {
+          console.warn("Error fetching user from Firestore:", firestoreError);
+        }
       }
       
       // إذا لم توجد بيانات في Firestore، نعيد بيانات Firebase Client
