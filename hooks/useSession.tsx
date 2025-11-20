@@ -353,7 +353,44 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     
     // حفظ في Firebase إذا كان هناك uid
     if (userData.uid) {
-      // محاولة استخدام API أولاً
+      // في development، استخدم Client-side Firestore مباشرة لتجنب 503 errors
+      // في production، حاول استخدام API أولاً
+      const useClientSideDirectly = process.env.NODE_ENV === "development";
+      
+      if (useClientSideDirectly && db) {
+        // استخدام Client-side Firestore مباشرة في development
+        try {
+          const userRef = doc(db, "users", userData.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (!userDoc.exists()) {
+            await setDoc(userRef, {
+              name: userData.name,
+              email: userData.email,
+              photoURL: userData.photoURL || "",
+              phone: userData.phone || "",
+              birthDate: userData.birthDate || "",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            const existingData = userDoc.data();
+            await updateDoc(userRef, {
+              name: userData.name || existingData?.name || "",
+              email: userData.email || existingData?.email || "",
+              photoURL: userData.photoURL || existingData?.photoURL || "",
+              phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
+              birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } catch (firestoreError) {
+          console.error("Error saving user to Firestore:", firestoreError);
+        }
+        return; // لا نحاول API في development
+      }
+      
+      // في production، محاولة استخدام API أولاً
       try {
         const response = await fetch(`/api/users/${userData.uid}`, {
           method: "PUT",
