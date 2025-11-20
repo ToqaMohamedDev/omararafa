@@ -6,7 +6,7 @@ import { useSession } from "@/hooks/useSession";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, LogIn, Eye, EyeOff, Sparkles, ArrowRight, Phone, Calendar } from "lucide-react";
 import Link from "next/link";
-import { signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
 import { auth, googleProvider, db } from "@/lib/firebase-client";
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
@@ -40,40 +40,53 @@ const waitForAuth = (maxWait = 5000): Promise<any> => {
   });
 };
 
-// دالة للتحقق من اكتمال بيانات المستخدم
+// دالة محسّنة للتحقق من اكتمال بيانات المستخدم
 const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missingFields: string[] } => {
-  const requiredFields = {
-    phone: userData?.phone,
-    birthDate: userData?.birthDate,
-  };
-  
   const missingFields: string[] = [];
   
-  // التحقق من الحقول الإلزامية
-  if (!requiredFields.phone || requiredFields.phone.trim() === "") {
+  // فحص رقم التليفون
+  if (!userData?.phone || typeof userData.phone !== 'string' || userData.phone.trim() === "") {
     missingFields.push("phone");
   }
-  if (!requiredFields.birthDate || requiredFields.birthDate.trim() === "") {
+  
+  // فحص تاريخ الميلاد
+  if (!userData?.birthDate || typeof userData.birthDate !== 'string' || userData.birthDate.trim() === "") {
     missingFields.push("birthDate");
   }
   
+  const isComplete = missingFields.length === 0;
+  
+  console.log("🔍 فحص اكتمال البيانات:", {
+    phone: userData?.phone || "غير موجود",
+    birthDate: userData?.birthDate || "غير موجود",
+    isComplete,
+    missingFields
+  });
+  
   return {
-    isComplete: missingFields.length === 0,
+    isComplete,
     missingFields,
   };
 };
 
-// دالة للتحقق من وجود واكتمال بيانات المستخدم في Firestore
-const checkFirestoreUserData = async (uid: string): Promise<{ exists: boolean; data: any; isComplete: boolean; missingFields: string[] }> => {
+// دالة محسّنة للتحقق من وجود واكتمال بيانات المستخدم في Firestore
+const checkFirestoreUserData = async (uid: string): Promise<{ 
+  exists: boolean; 
+  data: any; 
+  isComplete: boolean; 
+  missingFields: string[] 
+}> => {
   if (!db) {
     throw new Error("Firestore غير مهيأ");
   }
-
   try {
+    console.log("🔍 فحص Firestore للمستخدم:", uid);
+    
     const userRef = doc(db, "users", uid);
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
+      console.log("❌ المستخدم غير موجود في Firestore");
       return {
         exists: false,
         data: null,
@@ -83,6 +96,12 @@ const checkFirestoreUserData = async (uid: string): Promise<{ exists: boolean; d
     }
     
     const userData = userDoc.data();
+    console.log("✅ تم العثور على المستخدم:", {
+      email: userData.email,
+      phone: userData.phone,
+      birthDate: userData.birthDate
+    });
+    
     const completeness = checkUserDataCompleteness(userData);
     
     return {
@@ -92,7 +111,7 @@ const checkFirestoreUserData = async (uid: string): Promise<{ exists: boolean; d
       missingFields: completeness.missingFields,
     };
   } catch (error: any) {
-    console.error("Error checking Firestore user data:", error);
+    console.error("❌ خطأ في فحص Firestore:", error);
     throw error;
   }
 };
@@ -278,6 +297,8 @@ function LoginForm() {
         throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
       }
 
+      console.log("🔄 بدء Google Sign-In");
+
       // المرحلة 1: تسجيل الدخول بـ Google
       const popupPromise = signInWithPopup(auth, googleProvider);
       const timeoutPromise = new Promise((_, reject) => {
@@ -287,13 +308,36 @@ function LoginForm() {
       const result = await Promise.race([popupPromise, timeoutPromise]) as any;
       const firebaseUser = result.user;
       const uid = firebaseUser.uid;
+      
+      console.log("✅ Google Sign-In نجح:", { uid, email: firebaseUser.email });
 
       // المرحلة 2: فحص Firestore مباشرة
+      console.log("🔍 فحص بيانات Firestore...");
       const firestoreCheck = await checkFirestoreUserData(uid);
+      
+      console.log("📊 نتيجة فحص Firestore:", {
+        exists: firestoreCheck.exists,
+        isComplete: firestoreCheck.isComplete,
+        missingFields: firestoreCheck.missingFields,
+        hasPhone: !!firestoreCheck.data?.phone,
+        hasBirthDate: !!firestoreCheck.data?.birthDate
+      });
 
       // المرحلة 3 & 5: إذا كانت البيانات كاملة → دخول مباشر
-      if (firestoreCheck.isComplete && firestoreCheck.data) {
+      if (firestoreCheck.exists && firestoreCheck.isComplete && firestoreCheck.data) {
+        console.log("✅ البيانات كاملة - دخول مباشر");
         const userData = firestoreCheck.data;
+        
+        // التأكد من وجود جميع الحقول المطلوبة
+        if (!userData.phone || !userData.birthDate) {
+          console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص:", {
+            phone: userData.phone,
+            birthDate: userData.birthDate
+          });
+          // اعتبرها بيانات ناقصة وأظهر النموذج
+          throw new Error("INCOMPLETE_DATA");
+        }
+        
         login({
           uid: uid,
           email: userData.email || firebaseUser.email || "",
@@ -302,11 +346,15 @@ function LoginForm() {
           phone: userData.phone || "",
           birthDate: userData.birthDate || "",
         });
+        
+        setIsLoading(false);
         router.push("/");
         return;
       }
 
       // المرحلة 4: البيانات ناقصة أو document غير موجود → عرض النموذج
+      console.log("⚠️ البيانات ناقصة أو غير موجودة - عرض النموذج");
+      
       const googleData = {
         uid: uid,
         email: firebaseUser.email || "",
@@ -316,12 +364,28 @@ function LoginForm() {
         phone: firestoreCheck.data?.phone || "",
         birthDate: firestoreCheck.data?.birthDate || "",
       };
+      
+      console.log("📝 بيانات Google للنموذج:", {
+        uid: googleData.uid,
+        hasPhone: !!googleData.phone,
+        hasBirthDate: !!googleData.birthDate
+      });
 
       setGoogleUserData(googleData);
       setShowGoogleForm(true);
       setIsLoading(false);
+      
     } catch (err: any) {
-      console.error("Google sign in error:", err);
+      console.error("❌ Google sign in error:", err);
+      
+      // حالة خاصة: بيانات ناقصة
+      if (err.message === "INCOMPLETE_DATA") {
+        // أعد المحاولة باعتبارها بيانات ناقصة
+        setShowGoogleForm(true);
+        setIsLoading(false);
+        return;
+      }
+      
       let errorMessage = "حدث خطأ أثناء تسجيل الدخول بـ Google";
       
       if (err.message === "TIMEOUT" || err.name === "AbortError") {
@@ -779,7 +843,6 @@ function LoginForm() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={(e) => {
-              // منع إغلاق الـ modal عند الضغط على الخلفية
               e.stopPropagation();
             }}
           >
@@ -787,9 +850,42 @@ function LoginForm() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="card p-8 max-w-md w-full"
+              className="card p-8 max-w-md w-full relative"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* زر الإغلاق */}
+              <button
+                type="button"
+                onClick={() => {
+                  // إغلاق Modal والعودة لشاشة تسجيل الدخول
+                  setShowGoogleForm(false);
+                  setGoogleUserData(null);
+                  setPhone("");
+                  setBirthDate("");
+                  setError("");
+                  setIsLoading(false);
+                  // تسجيل خروج المستخدم من Google
+                  if (auth) {
+                    signOut(auth);
+                  }
+                }}
+                className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
               <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
                 أكمل بياناتك
               </h2>
@@ -836,9 +932,20 @@ function LoginForm() {
                 <button
                   type="submit"
                   disabled={isLoading || !phone || !birthDate}
-                  className="w-full btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isLoading ? "جاري الحفظ..." : "حفظ والمتابعة"}
+                  {isLoading ? (
+                    <>
+                      <motion.div
+                        className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      <span>جاري الحفظ...</span>
+                    </>
+                  ) : (
+                    "حفظ والمتابعة"
+                  )}
                 </button>
               </form>
             </motion.div>
