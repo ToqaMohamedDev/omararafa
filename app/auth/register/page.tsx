@@ -471,6 +471,20 @@ export default function RegisterPage() {
       // المرحلة 6: حفظ البيانات في Firestore
       try {
         await saveUserDataWithRetry(uid, finalUserData, 3);
+        console.log("✅ تم حفظ البيانات في Firestore بنجاح:", { uid, phone: finalUserData.phone, birthDate: finalUserData.birthDate });
+        
+        // التحقق من أن البيانات تم حفظها بالفعل
+        if (db) {
+          const userRef = doc(db, "users", uid);
+          const verifyDoc = await getDoc(userRef);
+          if (verifyDoc.exists()) {
+            const savedData = verifyDoc.data();
+            console.log("✅ تم التحقق من البيانات المحفوظة:", savedData);
+          } else {
+            console.error("❌ البيانات لم تُحفظ في Firestore!");
+            throw new Error("فشل التحقق من حفظ البيانات");
+          }
+        }
       } catch (saveError: any) {
         // إذا فشل الحفظ، حاول استخدام API كـ fallback
         if (saveError.code === "permission-denied" || saveError.message?.includes("صلاحية")) {

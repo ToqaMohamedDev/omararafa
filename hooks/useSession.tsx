@@ -387,17 +387,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               });
             } else {
               const existingData = userDoc.data();
+              // استخدام البيانات الجديدة إذا كانت موجودة وليست فارغة، وإلا استخدم الموجودة
               await updateDoc(userRef, {
-                name: userData.name,
-                email: userData.email,
+                name: userData.name || existingData?.name || "",
+                email: userData.email || existingData?.email || "",
                 photoURL: userData.photoURL || existingData?.photoURL || "",
-                phone: existingData?.phone || userData.phone || "",
-                birthDate: existingData?.birthDate || userData.birthDate || "",
+                phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
+                birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
                 updatedAt: serverTimestamp(),
               });
             }
           } catch (firestoreError) {
-            console.warn("Error saving user to Firestore (client-side fallback):", firestoreError);
+            console.error("Error saving user to Firestore (client-side fallback):", firestoreError);
           }
         }
       } catch (error) {
@@ -420,17 +421,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               });
             } else {
               const existingData = userDoc.data();
+              // استخدام البيانات الجديدة إذا كانت موجودة وليست فارغة، وإلا استخدم الموجودة
               await updateDoc(userRef, {
-                name: userData.name,
-                email: userData.email,
+                name: userData.name || existingData?.name || "",
+                email: userData.email || existingData?.email || "",
                 photoURL: userData.photoURL || existingData?.photoURL || "",
-                phone: existingData?.phone || userData.phone || "",
-                birthDate: existingData?.birthDate || userData.birthDate || "",
+                phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
+                birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
                 updatedAt: serverTimestamp(),
               });
             }
           } catch (firestoreError) {
-            console.warn("Error saving user to Firestore (client-side fallback):", firestoreError);
+            console.error("Error saving user to Firestore (client-side fallback):", firestoreError);
           }
         }
       }
