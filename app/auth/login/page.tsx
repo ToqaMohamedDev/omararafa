@@ -41,8 +41,19 @@ const waitForAuth = (maxWait = 5000): Promise<any> => {
 };
 
 // دالة محسّنة للتحقق من اكتمال بيانات المستخدم
+// تفحص: الاسم، الإيميل، رقم التليفون، تاريخ الميلاد، الصورة
 const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missingFields: string[] } => {
   const missingFields: string[] = [];
+  
+  // فحص الاسم
+  if (!userData?.name || typeof userData.name !== 'string' || userData.name.trim() === "") {
+    missingFields.push("name");
+  }
+  
+  // فحص الإيميل
+  if (!userData?.email || typeof userData.email !== 'string' || userData.email.trim() === "") {
+    missingFields.push("email");
+  }
   
   // فحص رقم التليفون
   if (!userData?.phone || typeof userData.phone !== 'string' || userData.phone.trim() === "") {
@@ -54,11 +65,17 @@ const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missin
     missingFields.push("birthDate");
   }
   
+  // فحص الصورة (اختياري - لكن نتحقق منها)
+  // الصورة ليست إلزامية، لكن نتحقق منها
+  
   const isComplete = missingFields.length === 0;
   
   console.log("🔍 فحص اكتمال البيانات:", {
+    name: userData?.name || "غير موجود",
+    email: userData?.email || "غير موجود",
     phone: userData?.phone || "غير موجود",
     birthDate: userData?.birthDate || "غير موجود",
+    photoURL: userData?.photoURL || "غير موجود",
     isComplete,
     missingFields
   });
@@ -323,14 +340,16 @@ function LoginForm() {
         hasBirthDate: !!firestoreCheck.data?.birthDate
       });
 
-      // المرحلة 3 & 5: إذا كانت البيانات كاملة → دخول مباشر
+      // المرحلة 3 & 5: إذا كانت البيانات كاملة → حفظ في Firestore ثم دخول
       if (firestoreCheck.exists && firestoreCheck.isComplete && firestoreCheck.data) {
-        console.log("✅ البيانات كاملة - دخول مباشر");
+        console.log("✅ البيانات كاملة في Firestore - حفظ/تحديث ثم دخول");
         const userData = firestoreCheck.data;
         
         // التأكد من وجود جميع الحقول المطلوبة
-        if (!userData.phone || !userData.birthDate) {
+        if (!userData.name || !userData.email || !userData.phone || !userData.birthDate) {
           console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص:", {
+            name: userData.name,
+            email: userData.email,
             phone: userData.phone,
             birthDate: userData.birthDate
           });
@@ -338,13 +357,32 @@ function LoginForm() {
           throw new Error("INCOMPLETE_DATA");
         }
         
-        login({
-          uid: uid,
-          email: userData.email || firebaseUser.email || "",
+        // حفظ/تحديث البيانات في Firestore (بعد auth)
+        // استخدام البيانات من Firestore مع تحديث من Google إذا لزم الأمر
+        const finalUserData = {
           name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-          photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+          email: userData.email || firebaseUser.email || "",
+          photoURL: userData.photoURL || firebaseUser.photoURL || "",
           phone: userData.phone || "",
           birthDate: userData.birthDate || "",
+        };
+        
+        // حفظ/تحديث في Firestore
+        try {
+          await saveUserDataWithRetry(uid, finalUserData, 3);
+          console.log("✅ تم حفظ/تحديث البيانات في Firestore");
+        } catch (saveError) {
+          console.warn("⚠️ تحذير: فشل حفظ البيانات في Firestore، لكن سنكمل الدخول:", saveError);
+        }
+        
+        // تسجيل الدخول
+        login({
+          uid: uid,
+          email: finalUserData.email,
+          name: finalUserData.name,
+          photoURL: finalUserData.photoURL || undefined,
+          phone: finalUserData.phone,
+          birthDate: finalUserData.birthDate,
         });
         
         setIsLoading(false);
@@ -355,20 +393,25 @@ function LoginForm() {
       // المرحلة 4: البيانات ناقصة أو document غير موجود → عرض النموذج
       console.log("⚠️ البيانات ناقصة أو غير موجودة - عرض النموذج");
       
+      // جمع البيانات من Google و Firestore
       const googleData = {
         uid: uid,
-        email: firebaseUser.email || "",
-        name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-        photoURL: firebaseUser.photoURL || undefined,
-        // استخدم البيانات الموجودة من Firestore إذا كانت موجودة، وإلا استخدم قيم فارغة
+        // استخدم البيانات من Firestore إذا كانت موجودة، وإلا استخدم من Google
+        name: firestoreCheck.data?.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+        email: firestoreCheck.data?.email || firebaseUser.email || "",
+        photoURL: firestoreCheck.data?.photoURL || firebaseUser.photoURL || undefined,
         phone: firestoreCheck.data?.phone || "",
         birthDate: firestoreCheck.data?.birthDate || "",
       };
       
-      console.log("📝 بيانات Google للنموذج:", {
+      console.log("📝 بيانات للنموذج (من Google + Firestore):", {
         uid: googleData.uid,
+        name: googleData.name,
+        email: googleData.email,
+        hasPhoto: !!googleData.photoURL,
         hasPhone: !!googleData.phone,
-        hasBirthDate: !!googleData.birthDate
+        hasBirthDate: !!googleData.birthDate,
+        missingFields: firestoreCheck.missingFields
       });
 
       setGoogleUserData(googleData);
