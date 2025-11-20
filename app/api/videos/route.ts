@@ -1,34 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // GET - جلب جميع الفيديوهات
 export async function GET(request: NextRequest) {
   try {
-    if (!adminFirestore) {
-      // في development، إرجاع بيانات فارغة بدلاً من 503
-      return NextResponse.json({ videos: [] });
-    }
-    const videosSnapshot = await adminFirestore.collection("videos").orderBy("createdAt", "desc").get();
-    
-    // جلب جميع التصنيفات
-    const categoriesSnapshot = await adminFirestore.collection("categories").get();
-    const categoriesMap = new Map();
-    categoriesSnapshot.docs.forEach((doc: any) => {
-      categoriesMap.set(doc.id, doc.data().name);
-    });
-
-    // إضافة اسم التصنيف لكل فيديو
-    const videos = videosSnapshot.docs.map((doc: any) => {
-      const videoData = doc.data();
-      const categoryId = videoData.category;
-      return {
-        id: doc.id,
-        ...videoData,
-        categoryName: categoryId ? categoriesMap.get(categoryId) || "" : "",
-      };
-    });
-
-    return NextResponse.json({ videos });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json({ videos: [] });
   } catch (error: any) {
     console.error("Get videos error:", error);
     return NextResponse.json(
@@ -41,62 +17,11 @@ export async function GET(request: NextRequest) {
 // POST - إضافة فيديو جديد
 export async function POST(request: NextRequest) {
   try {
-    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore || !FieldValue) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { idToken, title, videoUrl, thumbnailUrl, description, category, level } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    if (!title || !videoUrl || !description || !category) {
-      return NextResponse.json(
-        { error: "Title, video URL, description, and category are required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من وجود التصنيف
-    const categoryDoc = await adminFirestore.collection("categories").doc(category).get();
-    if (!categoryDoc.exists) {
-      return NextResponse.json(
-        { error: "Category not found" },
-        { status: 400 }
-      );
-    }
-
-    const videoRef = await adminFirestore.collection("videos").add({
-      title,
-      videoUrl,
-      thumbnailUrl: thumbnailUrl || "",
-      description,
-      category, // category ID
-      level: level || "مبتدئ",
-      views: 0,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    return NextResponse.json({
-      id: videoRef.id,
-      message: "Video added successfully",
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to add videos." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Add video error:", error);
     return NextResponse.json(

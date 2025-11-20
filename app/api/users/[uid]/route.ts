@@ -1,30 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { uid: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin() || !adminFirestore) {
-      // في development، إرجاع null بدلاً من 503
-      return NextResponse.json({ uid: null, error: "Firebase Admin not initialized" });
-    }
-    const { uid } = params;
-
-    const userDoc = await adminFirestore.collection("users").doc(uid).get();
-
-    if (!userDoc.exists) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      uid,
-      ...userDoc.data(),
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to get user data." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Get user error:", error);
     return NextResponse.json(
@@ -39,35 +24,11 @@ export async function PUT(
   { params }: { params: { uid: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin() || !adminFirestore || !FieldValue) {
-      // في development، Firebase Admin قد لا يكون مهيأ - هذا طبيعي
-      // Client-side سيتعامل مع الحفظ مباشرة
-      if (process.env.NODE_ENV === "development") {
-        // لا نطبع خطأ في development - هذا متوقع
-        return NextResponse.json(
-          { error: "Firebase Admin not initialized", fallback: true },
-          { status: 503 }
-        );
-      }
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { uid } = params;
-    const data = await request.json();
-
-    await adminFirestore.collection("users").doc(uid).update({
-      ...data,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    const updatedDoc = await adminFirestore.collection("users").doc(uid).get();
-
-    return NextResponse.json({
-      uid,
-      ...updatedDoc.data(),
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update user data.", fallback: true },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Update user error:", error);
     return NextResponse.json(

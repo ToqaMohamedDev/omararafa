@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // PUT - تحديث دورة
 export async function PUT(
@@ -7,62 +6,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore || !FieldValue) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { id } = params;
-    const { idToken, title, description, videoUrl, thumbnailUrl, duration, level, instructor, category } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    const updateData: any = {
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    if (title) updateData.title = title;
-    if (description) updateData.description = description;
-    if (videoUrl) updateData.videoUrl = videoUrl;
-    if (thumbnailUrl !== undefined) updateData.thumbnailUrl = thumbnailUrl;
-    if (duration) updateData.duration = duration;
-    if (level) updateData.level = level;
-    if (instructor) updateData.instructor = instructor;
-    if (category) {
-      // التحقق من وجود التصنيف
-      const categoryDoc = await adminFirestore.collection("categories").doc(category).get();
-      if (!categoryDoc.exists) {
-        return NextResponse.json(
-          { error: "Category not found" },
-          { status: 400 }
-        );
-      }
-      updateData.category = category;
-    }
-
-    await adminFirestore.collection("courses").doc(id).update(updateData);
-
-    const updatedDoc = await adminFirestore.collection("courses").doc(id).get();
-
-    return NextResponse.json({
-      id,
-      ...updatedDoc.data(),
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update courses." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Update course error:", error);
     return NextResponse.json(
@@ -78,36 +26,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { id } = params;
-    const { idToken } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    await adminFirestore.collection("courses").doc(id).delete();
-
-    return NextResponse.json({
-      message: "Course deleted successfully",
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to delete courses." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Delete course error:", error);
     return NextResponse.json(

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, AlertCircle, Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipBack, SkipForward } from "lucide-react";
+import { X, Loader2, AlertCircle, Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipBack, SkipForward, Phone } from "lucide-react";
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -27,6 +27,7 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
   const [buffering, setBuffering] = useState(false);
 
   const finalVideoUrl = directVideoUrl || videoUrl;
+  const hasValidUrl = finalVideoUrl && finalVideoUrl.trim() !== "";
 
   // Play/Pause
   const togglePlay = () => {
@@ -238,14 +239,50 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
 
           {/* Video Container */}
           <div className="relative aspect-video bg-black">
-            {error ? (
+            {!hasValidUrl ? (
+              <div className="absolute inset-0 flex items-center justify-center text-white bg-gradient-to-br from-gray-900 via-black to-gray-900">
+                <div className="text-center px-8 max-w-2xl">
+                  <AlertCircle className="w-24 h-24 mx-auto mb-6 text-orange-500" />
+                  <h3 className="text-2xl md:text-3xl font-bold mb-4">رابط الفيديو غير متاح</h3>
+                  <p className="text-lg text-gray-300 mb-6 leading-relaxed">
+                    عذراً، رابط الفيديو غير متاح حالياً. يرجى التواصل مع مستر عمر للحصول على المساعدة.
+                  </p>
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                      <Phone className="w-6 h-6 text-orange-500" />
+                      <a 
+                        href="tel:01146525436"
+                        className="text-2xl font-bold text-orange-500 hover:text-orange-400 transition-colors"
+                      >
+                        01146525436
+                      </a>
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      اضغط على الرقم للاتصال مباشرة
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : error ? (
               <div className="absolute inset-0 flex items-center justify-center text-white">
-                <div className="text-center px-8">
+                <div className="text-center px-8 max-w-2xl">
                   <AlertCircle className="w-20 h-20 mx-auto mb-4 text-red-500" />
                   <p className="text-xl mb-4">{error}</p>
-                  <p className="text-sm text-gray-400 break-all font-mono bg-gray-900/50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-400 break-all font-mono bg-gray-900/50 p-4 rounded-lg mb-4">
                     {finalVideoUrl}
                   </p>
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                    <p className="text-gray-300 mb-3">إذا استمرت المشكلة، يرجى التواصل مع مستر عمر:</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <Phone className="w-5 h-5 text-orange-500" />
+                      <a 
+                        href="tel:01146525436"
+                        className="text-lg font-semibold text-orange-500 hover:text-orange-400 transition-colors"
+                      >
+                        01146525436
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (

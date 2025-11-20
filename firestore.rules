@@ -1,0 +1,90 @@
+rules_version = '2';
+
+service cloud.firestore {
+
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------
+    // دوال مساعدة (Helper Functions)
+    // ---------------------------------------------------------
+
+    // دالة للتحقق من اشتراك المستخدم
+    function hasValidSubscription() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/subscriptions/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.endsAt > request.time;
+    }
+
+    // دالة للتحقق من أن المستخدم أدمن
+    // تفترض هذه الدالة وجود كولكشن باسم 'roles'
+    // ويجب أن يكون اسم المستند (ID) هو نفسه (UID) الخاص بالمستخدم
+    // ويحتوي المستند على حقل 'role' قيمته 'admin'
+    function isAdmin() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---------------------------------------------------------
+    // القواعد (Rules)
+    // ---------------------------------------------------------
+
+    // قواعد كولكشن الأدوار (لحماية بيانات الأدمن نفسه)
+    match /roles/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // يفضل أن يتم تعيين الأدمن يدوياً من لوحة تحكم فايربيس
+    }
+
+    match /users/{userId} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update, delete: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // قواعد الاشتراكات
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+
+    match /videos/{videoId} {
+      // السماح بالقراءة للجميع، والكتابة (إضافة/حذف/تعديل) للأدمن فقط
+      allow read: if true; 
+      allow write: if isAdmin();
+
+      match /private/source {
+        allow read: if hasValidSubscription();
+        allow write: if isAdmin(); // الأدمن يمكنه تعديل المصادر الخاصة
+      }
+    }
+
+    match /tests/{testId} {
+      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
+      allow read: if true; 
+      allow write: if isAdmin();
+
+      match /private/content {
+        allow read: if hasValidSubscription();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /categories/{categoryId} {
+      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /courses/{document=**} {
+      // السماح بالقراءة للمسجلين، والكتابة للأدمن فقط
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // منع الوصول لأي شيء آخر افتراضياً
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

@@ -4,7 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import { auth, db } from "@/lib/firebase-client";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp,
+  getDoc,
+  where,
+  setDoc
+} from "firebase/firestore";
 import { 
   Video, 
   FileText, 
@@ -16,7 +29,8 @@ import {
   Loader2,
   X,
   Check,
-  Tag
+  Tag,
+  CreditCard
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -66,7 +80,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "videos" | "tests" | "courses">("categories");
+  const [activeTab, setActiveTab] = useState<"categories" | "videos" | "tests" | "courses" | "subscriptions">("categories");
   
   // Categories
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -120,6 +134,17 @@ export default function AdminPage() {
     instructor: "عمر عرفة",
     category: "",
   });
+
+  // Subscriptions
+  const [subscriptions, setSubscriptions] = useState<Array<{
+    id: string;
+    userId: string;
+    adminId: string;
+    createdAt: any;
+    endsAt: any;
+  }>>([]);
+  const [showSubscriptionForm, setShowSubscriptionForm] = useState(false);
+  const [subscriptionForm, setSubscriptionForm] = useState({ userId: "" });
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -280,6 +305,27 @@ export default function AdminPage() {
         }
       }
       setCourses(coursesData);
+
+      // Load subscriptions
+      if (db && auth?.currentUser) {
+        try {
+          const subscriptionsQuery = query(collection(db, "subscriptions"), orderBy("createdAt", "desc"));
+          const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
+          const subscriptionsData = subscriptionsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Array<{
+            id: string;
+            userId: string;
+            adminId: string;
+            createdAt: any;
+            endsAt: any;
+          }>;
+          setSubscriptions(subscriptionsData);
+        } catch (error: any) {
+          console.error("Error fetching subscriptions from Firestore:", error);
+        }
+      }
     } catch (error) {
       console.error("Load data error:", error);
     }
@@ -299,31 +345,77 @@ export default function AdminPage() {
     setSubmitting(true);
     setMessage(null);
 
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const idToken = await getIdToken();
-      const url = editingCategory
-        ? `/api/categories/${editingCategory.id}`
-        : "/api/categories";
-      const method = editingCategory ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, name: categoryForm.name }),
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingCategory ? "تم تحديث التصنيف بنجاح" : "تم إضافة التصنيف بنجاح" });
-        setShowCategoryForm(false);
-        setEditingCategory(null);
-        setCategoryForm({ name: "" });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+      const categoryName = categoryForm.name.trim();
+      if (!categoryName) {
+        setMessage({ type: "error", text: "اسم التصنيف مطلوب" });
+        setSubmitting(false);
+        return;
       }
+
+      if (editingCategory) {
+        // تحديث التصنيف
+        // التحقق من عدم وجود تصنيف آخر بنفس الاسم
+        const categoriesQuery = query(
+          collection(db, "categories"),
+          where("name", "==", categoryName)
+        );
+        const existingCategories = await getDocs(categoriesQuery);
+        
+        const hasDuplicate = existingCategories.docs.some(
+          (doc) => doc.id !== editingCategory.id
+        );
+
+        if (hasDuplicate) {
+          setMessage({ type: "error", text: "اسم التصنيف موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        const categoryRef = doc(db, "categories", editingCategory.id);
+        await updateDoc(categoryRef, {
+          name: categoryName,
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم تحديث التصنيف بنجاح" });
+      } else {
+        // إضافة تصنيف جديد
+        // التحقق من عدم وجود تصنيف بنفس الاسم
+        const categoriesQuery = query(
+          collection(db, "categories"),
+          where("name", "==", categoryName)
+        );
+        const existingCategories = await getDocs(categoriesQuery);
+
+        if (!existingCategories.empty) {
+          setMessage({ type: "error", text: "اسم التصنيف موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        await addDoc(collection(db, "categories"), {
+          name: categoryName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم إضافة التصنيف بنجاح" });
+      }
+
+      setShowCategoryForm(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: "" });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error saving category:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ التصنيف" });
     } finally {
       setSubmitting(false);
     }
@@ -338,23 +430,37 @@ export default function AdminPage() {
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك فيديوهات أو دورات تستخدمه.")) return;
 
-    try {
-      const idToken = await getIdToken();
-      const response = await fetch(`/api/categories/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      return;
+    }
 
-      if (response.ok) {
-        setMessage({ type: "success", text: "تم حذف التصنيف بنجاح" });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+    try {
+      // التحقق من وجود فيديوهات أو دورات تستخدم هذا التصنيف
+      const videosQuery = query(collection(db, "videos"), where("category", "==", id));
+      const coursesQuery = query(collection(db, "courses"), where("category", "==", id));
+      
+      const [videosSnapshot, coursesSnapshot] = await Promise.all([
+        getDocs(videosQuery),
+        getDocs(coursesQuery)
+      ]);
+
+      if (!videosSnapshot.empty || !coursesSnapshot.empty) {
+        const items = [];
+        if (!videosSnapshot.empty) items.push("فيديوهات");
+        if (!coursesSnapshot.empty) items.push("دورات");
+        setMessage({ type: "error", text: `لا يمكن حذف التصنيف: يوجد ${items.join(" و ")} تستخدم هذا التصنيف` });
+        return;
       }
+
+      const categoryRef = doc(db, "categories", id);
+      await deleteDoc(categoryRef);
+
+      setMessage({ type: "success", text: "تم حذف التصنيف بنجاح" });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error deleting category:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف التصنيف" });
     }
   };
 
@@ -364,54 +470,119 @@ export default function AdminPage() {
     setSubmitting(true);
     setMessage(null);
 
-    try {
-      const idToken = await getIdToken();
-      const url = editingVideo
-        ? `/api/videos/${editingVideo.id}`
-        : "/api/videos";
-      const method = editingVideo ? "PUT" : "POST";
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
 
+    try {
       if (!videoForm.category) {
         setMessage({ type: "error", text: "يجب اختيار تصنيف للفيديو" });
         setSubmitting(false);
         return;
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, ...videoForm }),
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingVideo ? "تم تحديث الفيديو بنجاح" : "تم إضافة الفيديو بنجاح" });
-        setShowVideoForm(false);
-        setEditingVideo(null);
-        setVideoForm({
-          title: "",
-          videoUrl: "",
-          thumbnailUrl: "",
-          description: "",
-          category: "",
-          level: "مبتدئ",
-        });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+      if (!videoForm.title || !videoForm.description) {
+        setMessage({ type: "error", text: "العنوان والوصف مطلوبان" });
+        setSubmitting(false);
+        return;
       }
+
+      // التحقق من وجود التصنيف
+      const categoryRef = doc(db, "categories", videoForm.category);
+      const categoryDoc = await getDoc(categoryRef);
+      if (!categoryDoc.exists()) {
+        setMessage({ type: "error", text: "التصنيف المحدد غير موجود" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (editingVideo) {
+        // تحديث الفيديو
+        const videoRef = doc(db, "videos", editingVideo.id);
+        await updateDoc(videoRef, {
+          title: videoForm.title,
+          thumbnailUrl: videoForm.thumbnailUrl || "",
+          description: videoForm.description,
+          category: videoForm.category,
+          level: videoForm.level || "مبتدئ",
+          updatedAt: serverTimestamp(),
+        });
+
+        // إذا كان videoUrl موجود، تحديث private/source
+        if (videoForm.videoUrl) {
+          const privateSourceRef = doc(db, "videos", editingVideo.id, "private", "source");
+          await setDoc(privateSourceRef, {
+            url: videoForm.videoUrl,
+          }, { merge: true });
+        }
+
+        setMessage({ type: "success", text: "تم تحديث الفيديو بنجاح" });
+      } else {
+        // إضافة فيديو جديد
+        const videoRef = await addDoc(collection(db, "videos"), {
+          title: videoForm.title,
+          thumbnailUrl: videoForm.thumbnailUrl || "",
+          description: videoForm.description,
+          category: videoForm.category,
+          level: videoForm.level || "مبتدئ",
+          views: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        // إنشاء private subcollection مع videoUrl
+        if (videoForm.videoUrl) {
+          const privateSourceRef = doc(db, "videos", videoRef.id, "private", "source");
+          await setDoc(privateSourceRef, {
+            url: videoForm.videoUrl,
+          });
+        }
+
+        setMessage({ type: "success", text: "تم إضافة الفيديو بنجاح" });
+      }
+
+      setShowVideoForm(false);
+      setEditingVideo(null);
+      setVideoForm({
+        title: "",
+        videoUrl: "",
+        thumbnailUrl: "",
+        description: "",
+        category: "",
+        level: "مبتدئ",
+      });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error saving video:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الفيديو" });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEditVideo = (video: Video) => {
+  const handleEditVideo = async (video: Video) => {
     setEditingVideo(video);
+    
+    // جلب videoUrl من private subcollection
+    let videoUrl = video.videoUrl || "";
+    if (db && video.id) {
+      try {
+        const privateSourceRef = doc(db, "videos", video.id, "private", "source");
+        const privateSourceDoc = await getDoc(privateSourceRef);
+        if (privateSourceDoc.exists()) {
+          const data = privateSourceDoc.data();
+          videoUrl = data.url || "";
+        }
+      } catch (error) {
+        console.error("Error fetching video URL from private subcollection:", error);
+      }
+    }
+    
     setVideoForm({
       title: video.title,
-      videoUrl: video.videoUrl,
+      videoUrl: videoUrl,
       thumbnailUrl: video.thumbnailUrl || "",
       description: video.description,
       category: video.category || "",
@@ -423,23 +594,28 @@ export default function AdminPage() {
   const handleDeleteVideo = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا الفيديو؟")) return;
 
-    try {
-      const idToken = await getIdToken();
-      const response = await fetch(`/api/videos/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      return;
+    }
 
-      if (response.ok) {
-        setMessage({ type: "success", text: "تم حذف الفيديو بنجاح" });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+    try {
+      // حذف private subcollection أولاً
+      const privateSourceRef = doc(db, "videos", id, "private", "source");
+      const privateSourceDoc = await getDoc(privateSourceRef);
+      if (privateSourceDoc.exists()) {
+        await deleteDoc(privateSourceRef);
       }
+
+      // حذف المستند الرئيسي
+      const videoRef = doc(db, "videos", id);
+      await deleteDoc(videoRef);
+
+      setMessage({ type: "success", text: "تم حذف الفيديو بنجاح" });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error deleting video:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الفيديو" });
     }
   };
 
@@ -449,59 +625,112 @@ export default function AdminPage() {
     setSubmitting(true);
     setMessage(null);
 
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const idToken = await getIdToken();
-      const url = editingTest
-        ? `/api/tests/${editingTest.id}`
-        : "/api/tests";
-      const method = editingTest ? "PUT" : "POST";
+      if (!testForm.title || !testForm.description) {
+        setMessage({ type: "error", text: "العنوان والوصف مطلوبان" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!testForm.questionsData || testForm.questionsData.length === 0) {
+        setMessage({ type: "error", text: "يجب إضافة سؤال واحد على الأقل" });
+        setSubmitting(false);
+        return;
+      }
 
       const questions = testForm.questionsData.length;
-      const testData = {
-        ...testForm,
-        questions,
-        duration: testForm.duration || `${questions * 5} دقيقة`,
-      };
+      const duration = testForm.duration || `${questions * 5} دقيقة`;
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, ...testData }),
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingTest ? "تم تحديث الاختبار بنجاح" : "تم إضافة الاختبار بنجاح" });
-        setShowTestForm(false);
-        setEditingTest(null);
-        setTestForm({
-          title: "",
-          description: "",
-          duration: "",
-          category: "",
-          level: "مبتدئ",
-          questionsData: [],
+      if (editingTest) {
+        // تحديث الاختبار
+        const testRef = doc(db, "tests", editingTest.id);
+        await updateDoc(testRef, {
+          title: testForm.title,
+          description: testForm.description,
+          category: testForm.category || "",
+          level: testForm.level || "مبتدئ",
+          duration: duration,
+          updatedAt: serverTimestamp(),
         });
-        loadData();
+
+        // تحديث private/content مع questionsData
+        const privateContentRef = doc(db, "tests", editingTest.id, "private", "content");
+        await setDoc(privateContentRef, {
+          questionsData: testForm.questionsData,
+        }, { merge: true });
+
+        setMessage({ type: "success", text: "تم تحديث الاختبار بنجاح" });
       } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+        // إضافة اختبار جديد
+        const testRef = await addDoc(collection(db, "tests"), {
+          title: testForm.title,
+          description: testForm.description,
+          category: testForm.category || "",
+          level: testForm.level || "مبتدئ",
+          duration: duration,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        // إنشاء private subcollection مع questionsData
+        const privateContentRef = doc(db, "tests", testRef.id, "private", "content");
+        await setDoc(privateContentRef, {
+          questionsData: testForm.questionsData,
+        });
+
+        setMessage({ type: "success", text: "تم إضافة الاختبار بنجاح" });
       }
+
+      setShowTestForm(false);
+      setEditingTest(null);
+      setTestForm({
+        title: "",
+        description: "",
+        duration: "",
+        category: "",
+        level: "مبتدئ",
+        questionsData: [],
+      });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error saving test:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الاختبار" });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEditTest = (test: Test) => {
+  const handleEditTest = async (test: Test) => {
     setEditingTest(test);
+    
+    // جلب questionsData من private subcollection
+    let questionsData = test.questionsData || [];
+    if (db && test.id) {
+      try {
+        const privateContentRef = doc(db, "tests", test.id, "private", "content");
+        const privateContentDoc = await getDoc(privateContentRef);
+        if (privateContentDoc.exists()) {
+          const data = privateContentDoc.data();
+          questionsData = data.questionsData || [];
+        }
+      } catch (error) {
+        console.error("Error fetching questions data from private subcollection:", error);
+      }
+    }
+    
     setTestForm({
       title: test.title,
       description: test.description,
       duration: test.duration,
       category: test.category,
       level: test.level,
-      questionsData: test.questionsData || [],
+      questionsData: questionsData,
     });
     setShowTestForm(true);
   };
@@ -509,23 +738,28 @@ export default function AdminPage() {
   const handleDeleteTest = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا الاختبار؟")) return;
 
-    try {
-      const idToken = await getIdToken();
-      const response = await fetch(`/api/tests/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      return;
+    }
 
-      if (response.ok) {
-        setMessage({ type: "success", text: "تم حذف الاختبار بنجاح" });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+    try {
+      // حذف private subcollection أولاً
+      const privateContentRef = doc(db, "tests", id, "private", "content");
+      const privateContentDoc = await getDoc(privateContentRef);
+      if (privateContentDoc.exists()) {
+        await deleteDoc(privateContentRef);
       }
+
+      // حذف المستند الرئيسي
+      const testRef = doc(db, "tests", id);
+      await deleteDoc(testRef);
+
+      setMessage({ type: "success", text: "تم حذف الاختبار بنجاح" });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error deleting test:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاختبار" });
     }
   };
 
@@ -563,46 +797,87 @@ export default function AdminPage() {
     setSubmitting(true);
     setMessage(null);
 
-    try {
-      const idToken = await getIdToken();
-      const url = editingCourse
-        ? `/api/courses/${editingCourse.id}`
-        : "/api/courses";
-      const method = editingCourse ? "PUT" : "POST";
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
 
+    try {
       if (!courseForm.category) {
         setMessage({ type: "error", text: "يجب اختيار تصنيف للدورة" });
         setSubmitting(false);
         return;
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, ...courseForm }),
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingCourse ? "تم تحديث الدورة بنجاح" : "تم إضافة الدورة بنجاح" });
-        setShowCourseForm(false);
-        setEditingCourse(null);
-        setCourseForm({
-          title: "",
-          description: "",
-          videoUrl: "",
-          thumbnailUrl: "",
-          duration: "",
-          level: "مبتدئ",
-          instructor: "عمر عرفة",
-          category: "",
-        });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
+      if (!courseForm.title || !courseForm.description) {
+        setMessage({ type: "error", text: "العنوان والوصف مطلوبان" });
+        setSubmitting(false);
+        return;
       }
+
+      // التحقق من وجود التصنيف
+      const categoryRef = doc(db, "categories", courseForm.category);
+      const categoryDoc = await getDoc(categoryRef);
+      if (!categoryDoc.exists()) {
+        setMessage({ type: "error", text: "التصنيف المحدد غير موجود" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (editingCourse) {
+        // تحديث الدورة
+        const courseRef = doc(db, "courses", editingCourse.id);
+        await updateDoc(courseRef, {
+          title: courseForm.title,
+          description: courseForm.description,
+          videoUrl: courseForm.videoUrl || "",
+          thumbnailUrl: courseForm.thumbnailUrl || "",
+          duration: courseForm.duration || "0 ساعة",
+          level: courseForm.level || "مبتدئ",
+          instructor: courseForm.instructor || "عمر عرفة",
+          category: courseForm.category,
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم تحديث الدورة بنجاح" });
+      } else {
+        // إضافة دورة جديدة
+        await addDoc(collection(db, "courses"), {
+          title: courseForm.title,
+          description: courseForm.description,
+          videoUrl: courseForm.videoUrl || "",
+          thumbnailUrl: courseForm.thumbnailUrl || "",
+          duration: courseForm.duration || "0 ساعة",
+          level: courseForm.level || "مبتدئ",
+          instructor: courseForm.instructor || "عمر عرفة",
+          category: courseForm.category,
+          students: 0,
+          rating: 0,
+          lessons: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم إضافة الدورة بنجاح" });
+      }
+
+      setShowCourseForm(false);
+      setEditingCourse(null);
+      setCourseForm({
+        title: "",
+        description: "",
+        videoUrl: "",
+        thumbnailUrl: "",
+        duration: "",
+        level: "مبتدئ",
+        instructor: "عمر عرفة",
+        category: "",
+      });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error saving course:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الدورة" });
     } finally {
       setSubmitting(false);
     }
@@ -626,23 +901,104 @@ export default function AdminPage() {
   const handleDeleteCourse = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه الدورة؟")) return;
 
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      return;
+    }
+
     try {
-      const idToken = await getIdToken();
-      const response = await fetch(`/api/courses/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+      const courseRef = doc(db, "courses", id);
+      await deleteDoc(courseRef);
+
+      setMessage({ type: "success", text: "تم حذف الدورة بنجاح" });
+      loadData();
+    } catch (error: any) {
+      console.error("Error deleting course:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الدورة" });
+    }
+  };
+
+  // Subscription functions
+  const handleSubscriptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    if (!db || !user?.uid) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ أو المستخدم غير مسجل دخول." });
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const userId = subscriptionForm.userId.trim();
+      if (!userId) {
+        setMessage({ type: "error", text: "معرف المستخدم مطلوب" });
+        setSubmitting(false);
+        return;
+      }
+
+      // التحقق من وجود المستخدم
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        setMessage({ type: "error", text: "المستخدم غير موجود" });
+        setSubmitting(false);
+        return;
+      }
+
+      // التحقق من وجود اشتراك سابق
+      const subscriptionRef = doc(db, "subscriptions", userId);
+      const subscriptionDoc = await getDoc(subscriptionRef);
+      
+      if (subscriptionDoc.exists()) {
+        setMessage({ type: "error", text: "المستخدم لديه اشتراك موجود بالفعل" });
+        setSubmitting(false);
+        return;
+      }
+
+      // حساب تاريخ الانتهاء (شهر واحد من الآن)
+      const now = new Date();
+      const endsAt = new Date(now);
+      endsAt.setMonth(endsAt.getMonth() + 1);
+
+      // إنشاء الاشتراك
+      await setDoc(subscriptionRef, {
+        userId: userId,
+        adminId: user.uid,
+        createdAt: serverTimestamp(),
+        endsAt: endsAt,
       });
 
-      if (response.ok) {
-        setMessage({ type: "success", text: "تم حذف الدورة بنجاح" });
-        loadData();
-      } else {
-        const error = await response.json();
-        setMessage({ type: "error", text: error.error || "حدث خطأ" });
-      }
+      setMessage({ type: "success", text: "تم إضافة الاشتراك بنجاح" });
+      setShowSubscriptionForm(false);
+      setSubscriptionForm({ userId: "" });
+      loadData();
     } catch (error: any) {
-      setMessage({ type: "error", text: error.message || "حدث خطأ" });
+      console.error("Error saving subscription:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الاشتراك" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteSubscription = async (userId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا الاشتراك؟")) return;
+
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      return;
+    }
+
+    try {
+      const subscriptionRef = doc(db, "subscriptions", userId);
+      await deleteDoc(subscriptionRef);
+
+      setMessage({ type: "success", text: "تم حذف الاشتراك بنجاح" });
+      loadData();
+    } catch (error: any) {
+      console.error("Error deleting subscription:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاشتراك" });
     }
   };
 
@@ -704,6 +1060,7 @@ export default function AdminPage() {
             { id: "videos" as const, label: "الفيديوهات", icon: Video },
             { id: "tests" as const, label: "الاختبارات", icon: FileText },
             { id: "courses" as const, label: "الدورات", icon: BookOpen },
+            { id: "subscriptions" as const, label: "الاشتراكات", icon: CreditCard },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1114,11 +1471,11 @@ export default function AdminPage() {
                     {/* Questions */}
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <label className="font-semibold">الأسئلة</label>
+                        <label className="font-semibold text-gray-900 dark:text-white">الأسئلة</label>
                         <button
                           type="button"
                           onClick={addQuestion}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary-DEFAULT text-white rounded-lg hover:bg-primary-dark"
+                          className="flex items-center gap-2 px-4 py-2.5 btn-primary text-white font-semibold"
                         >
                           <Plus className="w-4 h-4" />
                           إضافة سؤال
@@ -1466,6 +1823,165 @@ export default function AdminPage() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Subscriptions Tab */}
+        {activeTab === "subscriptions" && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                إدارة الاشتراكات
+              </h2>
+              <button
+                onClick={() => {
+                  setSubscriptionForm({ userId: "" });
+                  setShowSubscriptionForm(true);
+                }}
+                className="flex items-center gap-2 btn-primary w-full sm:w-auto"
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-sm md:text-base">إضافة اشتراك</span>
+              </button>
+            </div>
+
+            {/* Subscription Form */}
+            <AnimatePresence>
+              {showSubscriptionForm && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="card mb-6 md:mb-8 card-padding"
+                >
+                  <form onSubmit={handleSubscriptionSubmit} className="form-spacing">
+                    <div>
+                      <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">
+                        معرف المستخدم (User ID)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={subscriptionForm.userId}
+                        onChange={(e) => setSubscriptionForm({ userId: e.target.value })}
+                        placeholder="أدخل User ID الخاص بالطالب"
+                        className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                      />
+                      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        سيتم إنشاء اشتراك لمدة شهر واحد تلقائياً
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3 md:gap-4">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                            <span>جاري الإضافة...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4 md:w-5 md:h-5" />
+                            <span>إضافة اشتراك</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSubscriptionForm(false);
+                          setSubscriptionForm({ userId: "" });
+                        }}
+                        className="flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
+                      >
+                        <X className="w-4 h-4 md:w-5 md:h-5" />
+                        <span>إلغاء</span>
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Subscriptions List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {subscriptions.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600 dark:text-gray-400">لا توجد اشتراكات</p>
+                </div>
+              ) : (
+                subscriptions.map((subscription) => {
+                  const createdAt = subscription.createdAt?.toDate ? subscription.createdAt.toDate() : null;
+                  const endsAt = subscription.endsAt?.toDate ? subscription.endsAt.toDate() : new Date(subscription.endsAt);
+                  const isExpired = endsAt < new Date();
+                  
+                  return (
+                    <motion.div
+                      key={subscription.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`card overflow-hidden hover:shadow-xl transition-shadow duration-300 ${
+                        isExpired ? "border-2 border-red-300 dark:border-red-700" : ""
+                      }`}
+                    >
+                      <div className="card-padding">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="font-bold mb-2 text-base md:text-lg text-gray-900 dark:text-white">
+                              User ID: {subscription.userId.substring(0, 8)}...
+                            </h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Admin ID: {subscription.adminId.substring(0, 8)}...
+                            </p>
+                          </div>
+                          {isExpired && (
+                            <span className="px-2 py-1 text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
+                              منتهي
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 mb-4">
+                          {createdAt && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-semibold">تاريخ البدء:</span>{" "}
+                              {createdAt.toLocaleDateString("ar-EG", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </div>
+                          )}
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-semibold">تاريخ الانتهاء:</span>{" "}
+                            {endsAt.toLocaleDateString("ar-EG", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDeleteSubscription(subscription.userId)}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg w-full"
+                          >
+                            <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+                            <span>حذف</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}

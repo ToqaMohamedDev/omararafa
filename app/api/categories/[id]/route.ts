@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // PUT - تحديث تصنيف
 export async function PUT(
@@ -7,66 +6,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore || !FieldValue) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { id } = params;
-    const { idToken, name } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    if (!name || name.trim() === "") {
-      return NextResponse.json(
-        { error: "Category name is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من عدم وجود تصنيف آخر بنفس الاسم
-    const existingCategories = await adminFirestore
-      .collection("categories")
-      .where("name", "==", name.trim())
-      .get();
-
-    const hasDuplicate = existingCategories.docs.some(
-      (doc: any) => doc.id !== id
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update categories." },
+      { status: 503 }
     );
-
-    if (hasDuplicate) {
-      return NextResponse.json(
-        { error: "Category name already exists" },
-        { status: 400 }
-      );
-    }
-
-    await adminFirestore.collection("categories").doc(id).update({
-      name: name.trim(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    const updatedDoc = await adminFirestore.collection("categories").doc(id).get();
-
-    return NextResponse.json({
-      id,
-      ...updatedDoc.data(),
-    });
   } catch (error: any) {
     console.error("Update category error:", error);
     return NextResponse.json(
@@ -82,57 +26,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!checkFirebaseAdmin()) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { id } = params;
-    const { idToken } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    // التحقق من وجود فيديوهات أو دورات تستخدم هذا التصنيف
-    const videosWithCategory = await adminFirestore
-      .collection("videos")
-      .where("category", "==", id)
-      .get();
-
-    const coursesWithCategory = await adminFirestore
-      .collection("courses")
-      .where("category", "==", id)
-      .get();
-
-    if (!videosWithCategory.empty || !coursesWithCategory.empty) {
-      const items = [];
-      if (!videosWithCategory.empty) items.push("فيديوهات");
-      if (!coursesWithCategory.empty) items.push("دورات");
-      return NextResponse.json(
-        { error: `لا يمكن حذف التصنيف: يوجد ${items.join(" و ")} تستخدم هذا التصنيف` },
-        { status: 400 }
-      );
-    }
-
-    await adminFirestore.collection("categories").doc(id).delete();
-
-    return NextResponse.json({
-      message: "Category deleted successfully",
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to delete categories." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Delete category error:", error);
     return NextResponse.json(

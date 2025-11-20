@@ -2,7 +2,7 @@
 
 import { useSession } from "@/hooks/useSession";
 import { useRouter } from "next/navigation";
-import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar } from "lucide-react";
+import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar, Copy, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
@@ -16,6 +16,7 @@ export default function ProfilePage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -64,6 +65,18 @@ export default function ProfilePage() {
       setTimeout(() => setSaveMessage(""), 3000);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCopyUID = async () => {
+    if (user?.uid) {
+      try {
+        await navigator.clipboard.writeText(user.uid);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (error) {
+        console.error("Failed to copy:", error);
+      }
     }
   };
 
@@ -126,10 +139,29 @@ export default function ProfilePage() {
                   {user?.email}
                 </p>
                 {user?.phone && (
-                  <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                  <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2 mb-1">
                     <Phone className="w-4 h-4" />
                     {user.phone}
                   </p>
+                )}
+                {user?.uid && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <p className="text-gray-600 dark:text-gray-400 text-sm flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <span className="font-mono text-xs">ID: {user.uid}</span>
+                    </p>
+                    <button
+                      onClick={handleCopyUID}
+                      className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      title="نسخ ID"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

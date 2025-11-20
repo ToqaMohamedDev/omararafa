@@ -1,55 +1,49 @@
-# إعداد Firebase Admin في Vercel
+# إعداد Firebase Client SDK في Vercel
 
-## المشكلة
-خطأ `503 (Service Unavailable)` في production يعني أن Firebase Admin غير مهيأ في Vercel.
+## 📋 المتغيرات المطلوبة
 
-## الحل: إضافة Environment Variables في Vercel
+المشروع يحتاج فقط إلى متغيرات Firebase Client SDK (6 متغيرات).
 
-### الخطوة 1: الحصول على Firebase Service Account
+## 🚀 الإعداد في Vercel
+
+### الخطوة 1: الحصول على Firebase Config
 
 1. اذهب إلى [Firebase Console](https://console.firebase.google.com/)
 2. اختر المشروع: **omrarafa-c6a94**
 3. اضغط على ⚙️ **Project Settings**
-4. اذهب إلى تبويب **Service accounts**
-5. اضغط على **Generate new private key**
-6. سيتم تحميل ملف JSON - **احفظه بأمان!**
+4. اذهب إلى تبويب **General**
+5. في قسم **Your apps**، اضغط على Web app (أو أنشئ واحداً)
+6. انسخ القيم من الكود المعروض
 
 ### الخطوة 2: إضافة Environment Variables في Vercel
 
 1. اذهب إلى [Vercel Dashboard](https://vercel.com/dashboard)
-2. اختر مشروعك: **omararafa-beta**
+2. اختر مشروعك
 3. اذهب إلى **Settings** → **Environment Variables**
 4. أضف المتغيرات التالية:
 
-#### الطريقة الأولى: استخدام FIREBASE_SERVICE_ACCOUNT (مستحسن)
-
 ```
-FIREBASE_SERVICE_ACCOUNT = (انسخ محتوى ملف JSON كاملاً)
+NEXT_PUBLIC_FIREBASE_API_KEY = (انسخ من Firebase Console)
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = omrarafa-c6a94.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = omrarafa-c6a94
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = omrarafa-c6a94.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = (انسخ من Firebase Console)
+NEXT_PUBLIC_FIREBASE_APP_ID = (انسخ من Firebase Console)
 ```
 
 **مثال:**
-```json
-{"type":"service_account","project_id":"omrarafa-c6a94","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}
+```
+NEXT_PUBLIC_FIREBASE_API_KEY = AIzaSyABC123XYZ789def456ghi789
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = omrarafa-c6a94.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = omrarafa-c6a94
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = omrarafa-c6a94.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 116963051139013645034
+NEXT_PUBLIC_FIREBASE_APP_ID = 1:116963051139013645034:web:abc123def456ghi789
 ```
 
-**مهم جداً:** 
-- انسخ الملف JSON **كاملاً** في سطر واحد
-- تأكد من أن `\n` في `private_key` موجودة (سيتم استبدالها تلقائياً)
-
-#### الطريقة الثانية: استخدام متغيرات منفصلة
-
-إذا لم تكن تريد استخدام `FIREBASE_SERVICE_ACCOUNT`، أضف:
-
-```
-FIREBASE_PROJECT_ID = omrarafa-c6a94
-FIREBASE_PRIVATE_KEY_ID = (من ملف JSON)
-FIREBASE_PRIVATE_KEY = (من ملف JSON - مع \n)
-FIREBASE_CLIENT_EMAIL = (من ملف JSON)
-FIREBASE_CLIENT_ID = (من ملف JSON)
-FIREBASE_CLIENT_X509_CERT_URL = (من ملف JSON)
-```
-
-**مهم:** في `FIREBASE_PRIVATE_KEY`، تأكد من أن `\n` موجودة بين الأسطر.
+**مهم:**
+- تأكد من اختيار **Production**, **Preview**, و **Development** لكل متغير
+- أو على الأقل **Production** و **Preview**
 
 ### الخطوة 3: Redeploy
 
@@ -61,23 +55,53 @@ FIREBASE_CLIENT_X509_CERT_URL = (من ملف JSON)
 
 ### الخطوة 4: التحقق
 
-بعد الـ redeploy، تحقق من:
+بعد الـ redeploy:
+1. افتح موقعك في Vercel
+2. افتح Developer Console (F12)
+3. يجب ألا ترى رسالة: `⚠️ Firebase API keys missing!`
+4. جرب تسجيل الدخول
 
-1. افتح [Vercel Logs](https://vercel.com/dashboard)
-2. ابحث عن: `Firebase Admin initialized successfully`
-3. إذا رأيت: `Firebase Admin: private_key missing`، يعني أن Environment Variables غير صحيحة
+## ✅ التحقق من الإعداد
 
-## ملاحظات مهمة
+في Vercel Logs، يجب ألا ترى:
+- ❌ `Firebase API keys are missing`
+- ❌ `auth/api-key-not-valid`
 
-- **لا تشارك** ملف Service Account JSON مع أي شخص
-- **لا ترفع** ملف JSON إلى GitHub
-- Environment Variables في Vercel **مشفرة** وآمنة
-- بعد إضافة Environment Variables، يجب عمل **Redeploy**
+## 🐛 حل المشاكل
 
-## إذا استمرت المشكلة
+### المشكلة: "Firebase API keys are missing"
 
-1. تحقق من أن `FIREBASE_SERVICE_ACCOUNT` يحتوي على JSON صحيح
-2. تحقق من أن `private_key` يحتوي على `\n` بين الأسطر
-3. تحقق من Vercel Logs للأخطاء
-4. تأكد من أن Service Account له الصلاحيات المطلوبة في Firebase
+**الحل:**
+1. تأكد من إضافة جميع المتغيرات الستة
+2. تأكد من أن المتغيرات تبدأ بـ `NEXT_PUBLIC_`
+3. تأكد من اختيار البيئات الصحيحة (Production, Preview, Development)
+4. قم بعمل Redeploy
 
+### المشكلة: لا يعمل تسجيل الدخول في Production
+
+**الحل:**
+1. تأكد من تفعيل Google Sign-In في Firebase Console
+2. تأكد من إضافة domain الخاص بـ Vercel في Authorized domains:
+   - Authentication → Settings → Authorized domains
+   - أضف: `your-project.vercel.app`
+
+## 📝 ملاحظات مهمة
+
+- 🔒 **هذه المتغيرات آمنة للكشف في Client-side** (هذا هو السلوك الطبيعي لـ Firebase Client SDK)
+- ⚠️ **بعد إضافة Environment Variables، يجب عمل Redeploy**
+- 📚 **للمزيد من المعلومات، راجع:** `FIREBASE-CLIENT-SETUP.md`
+
+## 🗑️ متغيرات لم تعد مطلوبة
+
+بعد إزالة Firebase Admin SDK، **لم تعد تحتاج** إلى:
+- ❌ `FIREBASE_SERVICE_ACCOUNT`
+- ❌ `FIREBASE_PROJECT_ID` (كان للـ Admin SDK)
+- ❌ `FIREBASE_PRIVATE_KEY`
+- ❌ `FIREBASE_CLIENT_EMAIL`
+- ❌ أي متغيرات أخرى متعلقة بـ Firebase Admin SDK
+
+## 🔗 روابط مفيدة
+
+- [Vercel Dashboard](https://vercel.com/dashboard)
+- [Firebase Console](https://console.firebase.google.com/project/omrarafa-c6a94/settings/general)
+- [FIREBASE-CLIENT-SETUP.md](./FIREBASE-CLIENT-SETUP.md)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// PUT - تحديث فيديو
+// PUT - تحديث اختبار
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -8,19 +8,19 @@ export async function PUT(
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
     return NextResponse.json(
-      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update videos." },
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update tests." },
       { status: 503 }
     );
   } catch (error: any) {
-    console.error("Update video error:", error);
+    console.error("Update test error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to update video" },
+      { error: error.message || "Failed to update test" },
       { status: 500 }
     );
   }
 }
 
-// DELETE - حذف فيديو
+// DELETE - حذف اختبار
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -28,13 +28,13 @@ export async function DELETE(
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
     return NextResponse.json(
-      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to delete videos." },
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to delete tests." },
       { status: 503 }
     );
   } catch (error: any) {
-    console.error("Delete video error:", error);
+    console.error("Delete test error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to delete video" },
+      { error: error.message || "Failed to delete test" },
       { status: 500 }
     );
   }

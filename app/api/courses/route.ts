@@ -1,34 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminFirestore, adminAuth, FieldValue, checkFirebaseAdmin } from "@/lib/firebase-admin";
 
 // GET - جلب جميع الدورات
 export async function GET(request: NextRequest) {
   try {
-    if (!adminFirestore) {
-      // في development، إرجاع بيانات فارغة بدلاً من 503
-      return NextResponse.json({ courses: [] });
-    }
-    const coursesSnapshot = await adminFirestore.collection("courses").orderBy("createdAt", "desc").get();
-    
-    // جلب جميع التصنيفات
-    const categoriesSnapshot = await adminFirestore.collection("categories").get();
-    const categoriesMap = new Map();
-    categoriesSnapshot.docs.forEach((doc: any) => {
-      categoriesMap.set(doc.id, doc.data().name);
-    });
-
-    // إضافة اسم التصنيف لكل دورة
-    const courses = coursesSnapshot.docs.map((doc: any) => {
-      const courseData = doc.data();
-      const categoryId = courseData.category;
-      return {
-        id: doc.id,
-        ...courseData,
-        categoryName: categoryId ? categoriesMap.get(categoryId) || "" : "",
-      };
-    });
-
-    return NextResponse.json({ courses });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json({ courses: [] });
   } catch (error: any) {
     console.error("Get courses error:", error);
     return NextResponse.json(
@@ -41,66 +17,11 @@ export async function GET(request: NextRequest) {
 // POST - إضافة دورة جديدة
 export async function POST(request: NextRequest) {
   try {
-    if (!checkFirebaseAdmin() || !adminAuth || !adminFirestore || !FieldValue) {
-      return NextResponse.json(
-        { error: "Firebase Admin not initialized" },
-        { status: 503 }
-      );
-    }
-    const { idToken, title, description, videoUrl, thumbnailUrl, duration, level, instructor, category } = await request.json();
-
-    if (!idToken) {
-      return NextResponse.json(
-        { error: "ID token is required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من Admin
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    if (decodedToken.email !== "dzggghjg@gmail.com") {
-      return NextResponse.json(
-        { error: "Unauthorized: Admin access only" },
-        { status: 403 }
-      );
-    }
-
-    if (!title || !description || !videoUrl || !category) {
-      return NextResponse.json(
-        { error: "Title, description, video URL, and category are required" },
-        { status: 400 }
-      );
-    }
-
-    // التحقق من وجود التصنيف
-    const categoryDoc = await adminFirestore.collection("categories").doc(category).get();
-    if (!categoryDoc.exists) {
-      return NextResponse.json(
-        { error: "Category not found" },
-        { status: 400 }
-      );
-    }
-
-    const courseRef = await adminFirestore.collection("courses").add({
-      title,
-      description,
-      videoUrl,
-      thumbnailUrl: thumbnailUrl || "",
-      duration: duration || "0 ساعة",
-      level: level || "مبتدئ",
-      instructor: instructor || "عمر عرفة",
-      category, // category ID
-      students: 0,
-      rating: 0,
-      lessons: 0,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    return NextResponse.json({
-      id: courseRef.id,
-      message: "Course added successfully",
-    });
+    // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
+    return NextResponse.json(
+      { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to add courses." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Add course error:", error);
     return NextResponse.json(
