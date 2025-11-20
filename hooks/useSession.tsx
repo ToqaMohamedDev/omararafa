@@ -190,7 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 // إذا لم تكن البيانات موجودة، تحقق من الصفحة الحالية
                 if (typeof window !== "undefined") {
                   // استخدام عدة طرق للتحقق من الصفحة الحالية
-                  const currentPath = window.location.pathname || window.location.href || pathname;
+                  const currentPath = window.location.pathname || window.location.href || pathname || "";
                   const isAuthPage = currentPath.includes("/auth/login") || 
                                     currentPath.includes("/auth/register") ||
                                     currentPath.includes("/auth/");
@@ -202,13 +202,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                       path: currentPath,
                       hasPhone: !!userData.phone,
                       hasBirthDate: !!userData.birthDate,
-                      firebaseUser: firebaseUser?.uid
+                      firebaseUser: firebaseUser?.uid,
+                      authCurrentUser: auth?.currentUser?.uid
                     });
                     // لا تسجل خروج - دع المستخدم يكمل بياناته
                     // نحافظ على firebaseUser موجوداً (لا نسجل خروج)
-                    setUser(null);
+                    // لا نضع setUser(null) هنا - نترك firebaseUser موجوداً
+                    // فقط نحذف من localStorage
                     localStorage.removeItem("user");
-                    // لا نعود هنا - نترك firebaseUser موجوداً
+                    // لا نعود هنا - نترك firebaseUser موجوداً حتى يتمكن من حفظ البيانات
                     return;
                   }
                   
