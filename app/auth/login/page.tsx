@@ -298,32 +298,100 @@ function LoginForm() {
         const { signInWithEmailAndPassword } = await import("firebase/auth");
         const result = await signInWithEmailAndPassword(auth, email, password);
         const user = result.user;
+        const uid = user.uid;
         
-        // الحصول على ID token
-        const idToken = await user.getIdToken();
+        console.log("✅ Email/Password Sign-In نجح:", { uid, email: user.email });
+
+        // فحص بيانات المستخدم من Firestore
+        if (!db) {
+          throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
+        }
+
+        console.log("🔍 فحص بيانات Firestore...");
+        const firestoreCheck = await checkFirestoreUserData(uid);
         
-        // التحقق من الـ token والحصول على بيانات المستخدم
-        const response = await fetch("/api/auth/verify", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ idToken }),
+        console.log("📊 نتيجة فحص Firestore:", {
+          exists: firestoreCheck.exists,
+          isComplete: firestoreCheck.isComplete,
+          missingFields: firestoreCheck.missingFields,
+          hasPhone: !!firestoreCheck.data?.phone,
+          hasBirthDate: !!firestoreCheck.data?.birthDate
         });
 
-        if (response.ok) {
-          const data = await response.json();
+        // إذا كانت البيانات كاملة → تسجيل الدخول مباشرة
+        if (firestoreCheck.exists && firestoreCheck.isComplete && firestoreCheck.data) {
+          console.log("✅ البيانات كاملة في Firestore - تسجيل الدخول");
+          const userData = firestoreCheck.data;
+          
+          // التأكد من وجود جميع الحقول المطلوبة
+          if (!userData.name || !userData.email || !userData.phone || !userData.birthDate) {
+            console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص");
+            // اعتبرها بيانات ناقصة وأظهر النموذج
+            throw new Error("INCOMPLETE_DATA");
+          }
+          
+          // تسجيل الدخول
           login({
-            uid: data.uid,
-            email: data.email || email,
-            name: data.name || email.split("@")[0],
+            uid: uid,
+            email: userData.email || user.email || email,
+            name: userData.name || user.displayName || email.split("@")[0],
+            photoURL: userData.photoURL || user.photoURL || undefined,
+            phone: userData.phone || "",
+            birthDate: userData.birthDate || "",
           });
+          
+          setIsLoading(false);
           router.push("/");
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "حدث خطأ أثناء تسجيل الدخول");
+          return;
         }
+
+        // البيانات ناقصة أو document غير موجود → عرض النموذج
+        console.log("⚠️ البيانات ناقصة أو غير موجودة - عرض النموذج");
+        
+        // جمع البيانات من Firebase Auth و Firestore
+        const emailUserData = {
+          uid: uid,
+          name: firestoreCheck.data?.name || user.displayName || email.split("@")[0] || "مستخدم",
+          email: firestoreCheck.data?.email || user.email || email,
+          photoURL: firestoreCheck.data?.photoURL || user.photoURL || undefined,
+          phone: firestoreCheck.data?.phone || "",
+          birthDate: firestoreCheck.data?.birthDate || "",
+        };
+        
+        console.log("📝 بيانات للنموذج:", {
+          uid: emailUserData.uid,
+          name: emailUserData.name,
+          email: emailUserData.email,
+          hasPhone: !!emailUserData.phone,
+          hasBirthDate: !!emailUserData.birthDate,
+          missingFields: firestoreCheck.missingFields
+        });
+
+        setGoogleUserData(emailUserData);
+        setShowGoogleForm(true);
+        setIsLoading(false);
+        
       } catch (err: any) {
+        // حالة خاصة: بيانات ناقصة
+        if (err.message === "INCOMPLETE_DATA") {
+          // أعد المحاولة باعتبارها بيانات ناقصة
+          if (db && auth?.currentUser) {
+            const uid = auth.currentUser.uid;
+            const firestoreCheck = await checkFirestoreUserData(uid);
+            const emailUserData = {
+              uid: uid,
+              name: firestoreCheck.data?.name || auth.currentUser.displayName || email.split("@")[0] || "مستخدم",
+              email: firestoreCheck.data?.email || auth.currentUser.email || email,
+              photoURL: firestoreCheck.data?.photoURL || auth.currentUser.photoURL || undefined,
+              phone: firestoreCheck.data?.phone || "",
+              birthDate: firestoreCheck.data?.birthDate || "",
+            };
+            setGoogleUserData(emailUserData);
+            setShowGoogleForm(true);
+            setIsLoading(false);
+            return;
+          }
+        }
         console.error("Login error:", err);
         let errorMessage = "حدث خطأ أثناء تسجيل الدخول";
         if (err.code === "auth/user-not-found") {
@@ -585,27 +653,10 @@ function LoginForm() {
             throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
           }
           
-          console.warn("⚠️ محاولة استخدام API كـ fallback");
-          try {
-            const response = await fetch(`/api/users/${uid}`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                phone: phone.trim(),
-                birthDate: birthDate.trim(),
-              }),
-            });
-            
-            if (!response.ok && response.status !== 503) {
-              throw new Error("فشل حفظ البيانات عبر API");
-            }
-            console.log("✅ تم حفظ البيانات عبر API");
-          } catch (apiError) {
-            console.error("❌ فشل حفظ البيانات عبر API:", apiError);
-            throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
-          }
+          // لا نستخدم API routes - تم إزالة Firebase Admin SDK
+          // فقط نعرض رسالة خطأ للمستخدم
+          console.warn("⚠️ فشل حفظ البيانات في Firestore");
+          throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
         } else {
           throw saveError;
         }

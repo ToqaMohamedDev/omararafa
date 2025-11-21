@@ -29,68 +29,8 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 // دالة مساعدة للتحقق من المستخدم
 const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
   try {
-    const idToken = await firebaseUser.getIdToken(false);
-    const response = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        uid: data.uid,
-        email: data.email || firebaseUser.email || "",
-        name: data.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-        photoURL: data.photoURL || firebaseUser.photoURL,
-        phone: data.phone || "",
-        birthDate: data.birthDate || "",
-      };
-    }
-    // إذا كان الخطأ 503 (Service Unavailable)، يعني Firebase Admin غير مهيأ
-    // جرب جلب البيانات من Firestore مباشرة
-    if (response.status === 503 && db) {
-      // في development، هذا متوقع - لا نطبع خطأ
-      if (process.env.NODE_ENV === "development") {
-        // صامت - هذا متوقع في development
-      }
-      
-      try {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userDoc = await getDoc(userRef);
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          return {
-            uid: firebaseUser.uid,
-            email: userData.email || firebaseUser.email || "",
-            name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-            photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
-            phone: userData.phone || "",
-            birthDate: userData.birthDate || "",
-          };
-        }
-      } catch (firestoreError) {
-        // في development، لا نطبع خطأ - هذا متوقع
-        if (process.env.NODE_ENV !== "development") {
-          console.warn("Error fetching user from Firestore:", firestoreError);
-        }
-      }
-      
-      // إذا لم توجد بيانات في Firestore، نعيد بيانات Firebase Client
-      return {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || "",
-        name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-        photoURL: firebaseUser.photoURL || undefined,
-        phone: "",
-        birthDate: "",
-      };
-    }
-    return null;
-  } catch (error) {
-    console.error("Error verifying user:", error);
-    // في حالة الخطأ، جرب جلب البيانات من Firestore مباشرة
+    // استخدام Firestore مباشرة بدون استدعاء API routes
+    // لأن Firebase Admin SDK تم إزالته
     if (db) {
       try {
         const userRef = doc(db, "users", firebaseUser.uid);
@@ -112,6 +52,17 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
       }
     }
     
+    // إذا لم توجد بيانات في Firestore، نعيد بيانات Firebase Client
+    return {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || "",
+      name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+      photoURL: firebaseUser.photoURL || undefined,
+      phone: "",
+      birthDate: "",
+    };
+  } catch (error) {
+    console.error("Error verifying user:", error);
     // في حالة الخطأ، نعيد بيانات المستخدم من Firebase Client
     return {
       uid: firebaseUser.uid,
@@ -391,126 +342,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("user", JSON.stringify(userData));
     
     // حفظ في Firebase إذا كان هناك uid
-    if (userData.uid) {
-      // في development، استخدم Client-side Firestore مباشرة لتجنب 503 errors
-      // في production، حاول استخدام API أولاً
-      const useClientSideDirectly = process.env.NODE_ENV === "development";
-      
-      if (useClientSideDirectly && db) {
-        // استخدام Client-side Firestore مباشرة في development
-        try {
-          const userRef = doc(db, "users", userData.uid);
-          const userDoc = await getDoc(userRef);
-          
-          if (!userDoc.exists()) {
-            await setDoc(userRef, {
-              name: userData.name,
-              email: userData.email,
-              photoURL: userData.photoURL || "",
-              phone: userData.phone || "",
-              birthDate: userData.birthDate || "",
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          } else {
-            const existingData = userDoc.data();
-            await updateDoc(userRef, {
-              name: userData.name || existingData?.name || "",
-              email: userData.email || existingData?.email || "",
-              photoURL: userData.photoURL || existingData?.photoURL || "",
-              phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
-              birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
-              updatedAt: serverTimestamp(),
-            });
-          }
-        } catch (firestoreError) {
-          console.error("Error saving user to Firestore:", firestoreError);
-        }
-        return; // لا نحاول API في development
-      }
-      
-      // في production، محاولة استخدام API أولاً
+    // استخدام Firestore مباشرة بدون استدعاء API routes
+    if (userData.uid && db) {
       try {
-        const response = await fetch(`/api/users/${userData.uid}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        const userRef = doc(db, "users", userData.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (!userDoc.exists()) {
+          await setDoc(userRef, {
             name: userData.name,
             email: userData.email,
             photoURL: userData.photoURL || "",
             phone: userData.phone || "",
             birthDate: userData.birthDate || "",
-          }),
-        });
-        
-        // إذا فشل API (503)، استخدم Client-side Firestore مباشرة
-        if (!response.ok && response.status === 503 && db) {
-          try {
-            const userRef = doc(db, "users", userData.uid);
-            const userDoc = await getDoc(userRef);
-            
-            if (!userDoc.exists()) {
-              await setDoc(userRef, {
-                name: userData.name,
-                email: userData.email,
-                photoURL: userData.photoURL || "",
-                phone: userData.phone || "",
-                birthDate: userData.birthDate || "",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              });
-            } else {
-              const existingData = userDoc.data();
-              // استخدام البيانات الجديدة إذا كانت موجودة وليست فارغة، وإلا استخدم الموجودة
-              await updateDoc(userRef, {
-                name: userData.name || existingData?.name || "",
-                email: userData.email || existingData?.email || "",
-                photoURL: userData.photoURL || existingData?.photoURL || "",
-                phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
-                birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
-                updatedAt: serverTimestamp(),
-              });
-            }
-          } catch (firestoreError) {
-            console.error("Error saving user to Firestore (client-side fallback):", firestoreError);
-          }
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          const existingData = userDoc.data();
+          await updateDoc(userRef, {
+            name: userData.name || existingData?.name || "",
+            email: userData.email || existingData?.email || "",
+            photoURL: userData.photoURL || existingData?.photoURL || "",
+            phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
+            birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
+            updatedAt: serverTimestamp(),
+          });
         }
-      } catch (error) {
-        console.error("Error updating user in Firebase:", error);
-        // Fallback إلى Client-side Firestore
-        if (db) {
-          try {
-            const userRef = doc(db, "users", userData.uid);
-            const userDoc = await getDoc(userRef);
-            
-            if (!userDoc.exists()) {
-              await setDoc(userRef, {
-                name: userData.name,
-                email: userData.email,
-                photoURL: userData.photoURL || "",
-                phone: userData.phone || "",
-                birthDate: userData.birthDate || "",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              });
-            } else {
-              const existingData = userDoc.data();
-              // استخدام البيانات الجديدة إذا كانت موجودة وليست فارغة، وإلا استخدم الموجودة
-              await updateDoc(userRef, {
-                name: userData.name || existingData?.name || "",
-                email: userData.email || existingData?.email || "",
-                photoURL: userData.photoURL || existingData?.photoURL || "",
-                phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
-                birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
-                updatedAt: serverTimestamp(),
-              });
-            }
-          } catch (firestoreError) {
-            console.error("Error saving user to Firestore (client-side fallback):", firestoreError);
-          }
-        }
+      } catch (firestoreError) {
+        console.error("Error saving user to Firestore:", firestoreError);
       }
     }
   };
@@ -530,70 +390,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const updateUser = async (userData: Partial<User>) => {
     if (!user?.uid) return;
     
-    try {
-      const response = await fetch(`/api/users/${user.uid}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(userData),
-      });
-
-      if (response.ok) {
-        const updatedUser = await response.json();
-        const newUserData = { ...user, ...updatedUser };
-        setUser(newUserData);
-        localStorage.setItem("user", JSON.stringify(newUserData));
-      } else if (response.status === 503 && db) {
-        // Fallback إلى Client-side Firestore إذا كان Admin غير متاح
-        try {
-          const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, {
-            ...userData,
-            updatedAt: serverTimestamp(),
-          });
-          
-          // جلب البيانات المحدثة
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            const updatedData = userDoc.data();
-            const newUserData = { ...user, ...updatedData };
-            setUser(newUserData);
-            localStorage.setItem("user", JSON.stringify(newUserData));
-          }
-        } catch (firestoreError) {
-          console.error("Error updating user in Firestore (client-side):", firestoreError);
-          throw firestoreError;
+    // استخدام Firestore مباشرة بدون استدعاء API routes
+    if (db) {
+      try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          ...userData,
+          updatedAt: serverTimestamp(),
+        });
+        
+        // جلب البيانات المحدثة
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const updatedData = userDoc.data();
+          const newUserData = { ...user, ...updatedData };
+          setUser(newUserData);
+          localStorage.setItem("user", JSON.stringify(newUserData));
         }
-      } else {
-        throw new Error("Failed to update user");
+      } catch (firestoreError) {
+        console.error("Error updating user in Firestore:", firestoreError);
+        throw firestoreError;
       }
-    } catch (error) {
-      console.error("Error updating user:", error);
-      // Fallback إلى Client-side Firestore
-      if (db) {
-        try {
-          const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, {
-            ...userData,
-            updatedAt: serverTimestamp(),
-          });
-          
-          // جلب البيانات المحدثة
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            const updatedData = userDoc.data();
-            const newUserData = { ...user, ...updatedData };
-            setUser(newUserData);
-            localStorage.setItem("user", JSON.stringify(newUserData));
-          }
-        } catch (firestoreError) {
-          console.error("Error updating user in Firestore (client-side fallback):", firestoreError);
-          throw firestoreError;
-        }
-      } else {
-        throw error;
-      }
+    } else {
+      throw new Error("Firestore غير مهيأ");
     }
   };
 

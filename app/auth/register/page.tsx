@@ -340,67 +340,98 @@ export default function RegisterPage() {
           displayName: name,
         });
         
-        // حفظ بيانات المستخدم في Firestore مباشرة
-        if (db) {
-          try {
-            const userRef = doc(db, "users", user.uid);
-            await setDoc(userRef, {
-              name: name,
-              email: email,
-              photoURL: "",
-              phone: "",
-              birthDate: "",
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          } catch (firestoreError) {
-            console.warn("Error saving user to Firestore:", firestoreError);
-            // لا نوقف العملية، فقط نعرض warning
-          }
-        }
-        
-        // محاولة استخدام API كـ fallback (اختياري)
-        try {
-          const idToken = await user.getIdToken();
-          const response = await fetch("/api/auth/google", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              idToken,
-              name,
-            }),
-          });
+        const uid = user.uid;
+        console.log("✅ Email/Password Register نجح:", { uid, email: user.email });
 
-          if (response.ok) {
-            const data = await response.json();
-            login({
-              uid: data.uid,
-              email: data.email || email,
-              name: data.name || name,
-              photoURL: data.photoURL || "",
-              phone: data.phone || "",
-              birthDate: data.birthDate || "",
-            });
-            router.push("/");
+        // فحص بيانات المستخدم من Firestore
+        if (!db) {
+          throw new Error("Firestore غير مهيأ. يرجى إعادة تحميل الصفحة");
+        }
+
+        console.log("🔍 فحص بيانات Firestore...");
+        const firestoreCheck = await checkFirestoreUserData(uid);
+        
+        console.log("📊 نتيجة فحص Firestore:", {
+          exists: firestoreCheck.exists,
+          isComplete: firestoreCheck.isComplete,
+          missingFields: firestoreCheck.missingFields,
+          hasPhone: !!firestoreCheck.data?.phone,
+          hasBirthDate: !!firestoreCheck.data?.birthDate
+        });
+
+        // إذا كانت البيانات كاملة → تسجيل الدخول مباشرة
+        if (firestoreCheck.exists && firestoreCheck.isComplete && firestoreCheck.data) {
+          console.log("✅ البيانات كاملة في Firestore - تسجيل الدخول");
+          const userData = firestoreCheck.data;
+          
+          // التأكد من وجود جميع الحقول المطلوبة
+          if (!userData.name || !userData.email || !userData.phone || !userData.birthDate) {
+            console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص");
+            // اعتبرها بيانات ناقصة وأظهر النموذج
+            throw new Error("INCOMPLETE_DATA");
+          }
+          
+          // تسجيل الدخول
+          login({
+            uid: uid,
+            email: userData.email || user.email || email,
+            name: userData.name || name,
+            photoURL: userData.photoURL || user.photoURL || undefined,
+            phone: userData.phone || "",
+            birthDate: userData.birthDate || "",
+          });
+          
+          setIsLoading(false);
+          router.push("/");
+          return;
+        }
+
+        // البيانات ناقصة أو document غير موجود → عرض النموذج
+        console.log("⚠️ البيانات ناقصة أو غير موجودة - عرض النموذج");
+        
+        // جمع البيانات من Firebase Auth و Firestore
+        const emailUserData = {
+          uid: uid,
+          name: firestoreCheck.data?.name || name || "مستخدم",
+          email: firestoreCheck.data?.email || user.email || email,
+          photoURL: firestoreCheck.data?.photoURL || user.photoURL || undefined,
+          phone: firestoreCheck.data?.phone || "",
+          birthDate: firestoreCheck.data?.birthDate || "",
+        };
+        
+        console.log("📝 بيانات للنموذج:", {
+          uid: emailUserData.uid,
+          name: emailUserData.name,
+          email: emailUserData.email,
+          hasPhone: !!emailUserData.phone,
+          hasBirthDate: !!emailUserData.birthDate,
+          missingFields: firestoreCheck.missingFields
+        });
+
+        setGoogleUserData(emailUserData);
+        setShowGoogleForm(true);
+        setIsLoading(false);
+      } catch (err: any) {
+        // حالة خاصة: بيانات ناقصة
+        if (err.message === "INCOMPLETE_DATA") {
+          // أعد المحاولة باعتبارها بيانات ناقصة
+          if (db && auth?.currentUser) {
+            const uid = auth.currentUser.uid;
+            const firestoreCheck = await checkFirestoreUserData(uid);
+            const emailUserData = {
+              uid: uid,
+              name: firestoreCheck.data?.name || auth.currentUser.displayName || name || "مستخدم",
+              email: firestoreCheck.data?.email || auth.currentUser.email || email,
+              photoURL: firestoreCheck.data?.photoURL || auth.currentUser.photoURL || undefined,
+              phone: firestoreCheck.data?.phone || "",
+              birthDate: firestoreCheck.data?.birthDate || "",
+            };
+            setGoogleUserData(emailUserData);
+            setShowGoogleForm(true);
+            setIsLoading(false);
             return;
           }
-        } catch (apiError) {
-          console.warn("API call failed, using client-side data:", apiError);
         }
-        
-        // إذا فشل API، استخدم البيانات من Firebase Client
-        login({
-          uid: user.uid,
-          email: user.email || email,
-          name: name,
-          photoURL: "",
-          phone: "",
-          birthDate: "",
-        });
-        router.push("/");
-      } catch (err: any) {
         console.error("Register error:", err);
         let errorMessage = "حدث خطأ أثناء إنشاء الحساب";
         if (err.code === "auth/email-already-in-use") {
@@ -661,27 +692,10 @@ export default function RegisterPage() {
             throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
           }
           
-          console.warn("⚠️ محاولة استخدام API كـ fallback");
-          try {
-            const response = await fetch(`/api/users/${uid}`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                phone: phone.trim(),
-                birthDate: birthDate.trim(),
-              }),
-            });
-            
-            if (!response.ok && response.status !== 503) {
-              throw new Error("فشل حفظ البيانات عبر API");
-            }
-            console.log("✅ تم حفظ البيانات عبر API");
-          } catch (apiError) {
-            console.error("❌ فشل حفظ البيانات عبر API:", apiError);
-            throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
-          }
+          // لا نستخدم API routes - تم إزالة Firebase Admin SDK
+          // فقط نعرض رسالة خطأ للمستخدم
+          console.warn("⚠️ فشل حفظ البيانات في Firestore");
+          throw new Error("ليس لديك صلاحية لحفظ البيانات. يرجى التحقق من إعدادات Firestore Security Rules");
         } else {
           throw saveError;
         }
