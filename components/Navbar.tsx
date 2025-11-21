@@ -15,6 +15,7 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const { user, isAuthenticated } = useSession();
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -26,8 +27,18 @@ export default function Navbar() {
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 10);
+      
+      // حساب نسبة السكرول
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const scrollableHeight = documentHeight - windowHeight;
+      const progress = scrollableHeight > 0 ? (scrollTop / scrollableHeight) * 100 : 0;
+      setScrollProgress(Math.min(100, Math.max(0, progress)));
     };
     window.addEventListener("scroll", handleScroll);
+    // حساب النسبة الأولية
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -76,6 +87,14 @@ export default function Navbar() {
           : "bg-white/95 dark:bg-gray-800/95 border-gray-200 dark:border-gray-700 shadow-md"
       }`}
     >
+      {/* Progress Bar */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 z-50">
+        <motion.div
+          className="h-full bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700"
+          style={{ width: `${scrollProgress}%` }}
+          transition={{ type: "spring", stiffness: 100, damping: 30 }}
+        />
+      </div>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
         <div className="flex justify-between items-center min-h-[80px] py-3">
           {/* Logo */}

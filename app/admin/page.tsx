@@ -33,7 +33,8 @@ import {
   CreditCard,
   Search,
   AlertTriangle,
-  MessageSquare
+  MessageSquare,
+  GraduationCap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { VideoCardSkeleton, CategoryCardSkeleton, TestCardSkeleton, CourseCardSkeleton, SubscriptionCardSkeleton, MessageCardSkeleton, AdminDashboardSkeleton } from "@/components/Skeleton";
@@ -82,7 +83,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "courseCategories" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
+  const [activeTab, setActiveTab] = useState<"categories" | "courseCategories" | "educationalLevels" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
   
   // Categories (for videos)
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -95,6 +96,12 @@ export default function AdminPage() {
   const [showCourseCategoryForm, setShowCourseCategoryForm] = useState(false);
   const [editingCourseCategory, setEditingCourseCategory] = useState<{ id: string; name: string } | null>(null);
   const [courseCategoryForm, setCourseCategoryForm] = useState({ name: "" });
+  
+  // Educational Levels
+  const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string }>>([]);
+  const [showEducationalLevelForm, setShowEducationalLevelForm] = useState(false);
+  const [editingEducationalLevel, setEditingEducationalLevel] = useState<{ id: string; name: string } | null>(null);
+  const [educationalLevelForm, setEducationalLevelForm] = useState({ name: "" });
   
   // Videos
   const [videos, setVideos] = useState<Video[]>([]);
@@ -284,6 +291,22 @@ export default function AdminPage() {
         }
       }
       setCourseCategories(courseCategoriesData);
+
+      // Load educational levels
+      let educationalLevelsData: Array<{ id: string; name: string }> = [];
+      if (db) {
+        try {
+          const educationalLevelsQuery = query(collection(db, "educationalLevels"), orderBy("name"));
+          const educationalLevelsSnapshot = await getDocs(educationalLevelsQuery);
+          educationalLevelsData = educationalLevelsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name,
+          }));
+        } catch (error) {
+          console.error("Error fetching educational levels from Firestore:", error);
+        }
+      }
+      setEducationalLevels(educationalLevelsData);
 
       // Load videos
       let videosData: Video[] = [];
@@ -708,6 +731,92 @@ export default function AdminPage() {
     }
       },
     });
+  };
+
+  // Educational Level functions
+  const handleEducationalLevelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const levelName = educationalLevelForm.name.trim();
+      if (!levelName) {
+        setMessage({ type: "error", text: "اسم المرحلة التعليمية مطلوب" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (editingEducationalLevel) {
+        // تحديث المرحلة التعليمية
+        const educationalLevelsQuery = query(
+          collection(db, "educationalLevels"),
+          where("name", "==", levelName)
+        );
+        const existingLevels = await getDocs(educationalLevelsQuery);
+        
+        const hasDuplicate = existingLevels.docs.some(
+          (doc) => doc.id !== editingEducationalLevel.id
+        );
+
+        if (hasDuplicate) {
+          setMessage({ type: "error", text: "اسم المرحلة التعليمية موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        const levelRef = doc(db, "educationalLevels", editingEducationalLevel.id);
+        await updateDoc(levelRef, {
+          name: levelName,
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم تحديث المرحلة التعليمية بنجاح" });
+      } else {
+        // إضافة مرحلة تعليمية جديدة
+        const educationalLevelsQuery = query(
+          collection(db, "educationalLevels"),
+          where("name", "==", levelName)
+        );
+        const existingLevels = await getDocs(educationalLevelsQuery);
+
+        if (!existingLevels.empty) {
+          setMessage({ type: "error", text: "اسم المرحلة التعليمية موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        await addDoc(collection(db, "educationalLevels"), {
+          name: levelName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم إضافة المرحلة التعليمية بنجاح" });
+      }
+
+        setShowEducationalLevelForm(false);
+        setEditingEducationalLevel(null);
+        setEducationalLevelForm({ name: "" });
+        loadData();
+    } catch (error: any) {
+      console.error("Error saving educational level:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ المرحلة التعليمية" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditEducationalLevel = (level: { id: string; name: string }) => {
+    setEditingEducationalLevel(level);
+    setEducationalLevelForm({ name: level.name });
+    setShowEducationalLevelForm(true);
   };
 
   // Video functions
@@ -1383,6 +1492,7 @@ export default function AdminPage() {
           {[
             { id: "categories" as const, label: "تصنيفات الفيديوهات", icon: Tag },
             { id: "courseCategories" as const, label: "تصنيفات الكورسات", icon: BookOpen },
+            { id: "educationalLevels" as const, label: "المراحل التعليمية", icon: GraduationCap },
             { id: "videos" as const, label: "الفيديوهات", icon: Video },
             { id: "tests" as const, label: "الاختبارات", icon: FileText },
             { id: "courses" as const, label: "الكورسات", icon: BookOpen },
@@ -1638,6 +1748,122 @@ export default function AdminPage() {
                           className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-300 hover:scale-110"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Educational Levels Tab */}
+        {activeTab === "educationalLevels" && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                إدارة المراحل التعليمية
+              </h2>
+              <button
+                onClick={() => {
+                  setEditingEducationalLevel(null);
+                  setEducationalLevelForm({ name: "" });
+                  setShowEducationalLevelForm(true);
+                }}
+                className="flex items-center gap-2 btn-primary w-full sm:w-auto"
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-sm md:text-base">إضافة مرحلة تعليمية</span>
+              </button>
+            </div>
+
+            {/* Educational Level Form */}
+            <AnimatePresence>
+              {showEducationalLevelForm && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="card mb-6 md:mb-8 card-padding"
+                >
+                  <form onSubmit={handleEducationalLevelSubmit} className="form-spacing">
+                    <div>
+                      <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">
+                        اسم المرحلة التعليمية
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={educationalLevelForm.name}
+                        onChange={(e) => setEducationalLevelForm({ name: e.target.value })}
+                        placeholder="مثال: ابتدائي، إعدادي، ثانوي، جامعي..."
+                        className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                      />
+                    </div>
+                    <div className="flex gap-4">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="btn-primary flex-1"
+                      >
+                        {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : editingEducationalLevel ? "تحديث" : "إضافة"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEducationalLevelForm(false);
+                          setEditingEducationalLevel(null);
+                        }}
+                        className="px-6 py-2 border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Educational Levels List */}
+            {educationalLevels.length === 0 && !loading ? (
+              <div className="text-center py-12 card card-padding">
+                <GraduationCap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
+                  لا توجد مراحل تعليمية. أضف مرحلة تعليمية جديدة للبدء.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  يمكن ربط المراحل التعليمية بالفيديوهات والكورسات والاختبارات.
+                </p>
+              </div>
+            ) : educationalLevels.length === 0 && loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <CategoryCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {educationalLevels.map((level) => (
+                  <motion.div
+                    key={level.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="card card-padding hover:shadow-xl transition-shadow duration-300"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#FF8C42] flex items-center justify-center shadow-md">
+                          <GraduationCap className="w-6 h-6 text-white" strokeWidth={2.5} />
+                        </div>
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{level.name}</h3>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditEducationalLevel(level)}
+                          className="p-2.5 text-[#FF6B35] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-110"
+                        >
+                          <Edit className="w-4 h-4" strokeWidth={2.5} />
                         </button>
                       </div>
                     </div>
