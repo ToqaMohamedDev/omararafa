@@ -75,10 +75,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /courses/{document=**} {
-      // السماح بالقراءة للمسجلين، والكتابة للأدمن فقط
-      allow read: if request.auth != null;
+    match /courseCategories/{categoryId} {
+      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
+      allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /private/source {
+        allow read: if hasValidSubscription();
+        allow write: if isAdmin(); // الأدمن يمكنه تعديل المصادر الخاصة
+      }
     }
 
     // قواعد الرسائل (الشكاوي)

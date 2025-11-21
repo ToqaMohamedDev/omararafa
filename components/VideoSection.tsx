@@ -46,6 +46,7 @@ export default function VideoSection() {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [showMessage, setShowMessage] = useState<{ type: "subscription" | "contact" | "login"; show: boolean }>({ type: "subscription", show: false });
+  const [filtering, setFiltering] = useState(false);
 
   // التحقق من الاشتراك
   useEffect(() => {
@@ -279,11 +280,18 @@ export default function VideoSection() {
             {categoryList.map((category, index) => (
               <motion.button
                 key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => {
+                  setFiltering(true);
+                  setSelectedCategory(category.id);
+                  // إخفاء Skeleton بعد فترة قصيرة
+                  setTimeout(() => {
+                    setFiltering(false);
+                  }, 800);
+                }}
                 className={`relative px-6 md:px-8 py-3 md:py-3.5 rounded-full font-semibold text-sm md:text-base transition-all duration-300 ${
                   selectedCategory === category.id
-                    ? "bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-xl shadow-primary-500/50 dark:shadow-primary-500/30 ring-4 ring-primary-400/30 dark:ring-primary-600/30 scale-105"
-                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-primary-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-500 hover:scale-105"
+                    ? "bg-primary-600 dark:bg-primary-700 text-white shadow-md shadow-primary-500/20 dark:shadow-primary-500/15 ring-2 ring-primary-400/20 dark:ring-primary-600/20 scale-105"
+                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:scale-105"
                 }`}
                 whileHover={{ scale: 1.08, y: -2 }}
                 whileTap={{ scale: 0.95 }}
@@ -292,13 +300,6 @@ export default function VideoSection() {
                 transition={{ delay: index * 0.05, type: "spring", stiffness: 300 }}
               >
                 {category.name}
-                {selectedCategory === category.id && (
-                  <motion.div
-                    className="absolute inset-0 rounded-full bg-gradient-to-r from-primary-400 to-primary-600 opacity-20 blur-xl"
-                    layoutId="activeCategory"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
               </motion.button>
             ))}
           </motion.div>
@@ -332,21 +333,40 @@ export default function VideoSection() {
               ))}
             </motion.div>
           </motion.div>
+        ) : filtering ? (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <VideoCardSkeleton key={i} />
+            ))}
+          </motion.div>
         ) : filteredVideos.length === 0 ? (
           <motion.div
             className="text-center py-20"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, type: "spring" }}
           >
             <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              initial={{ rotate: -180, scale: 0 }}
+              animate={{ rotate: 0, scale: 1 }}
+              transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
               className="inline-block mb-6"
             >
-              <div className="w-16 h-16 border-4 border-primary-200 dark:border-primary-900 border-t-primary-600 rounded-full"></div>
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6">
+                <BookOpen className="w-16 h-16 text-gray-400" />
+              </div>
             </motion.div>
-            <p className="text-lg text-gray-600 dark:text-gray-400 font-medium">لا توجد فيديوهات</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+              لا توجد فيديوهات
+            </h3>
+            <p className="text-lg text-gray-600 dark:text-gray-400">
+              لا توجد فيديوهات في هذا التصنيف حالياً
+            </p>
           </motion.div>
         ) : (
           <AnimatePresence mode="wait">
@@ -455,30 +475,7 @@ export default function VideoSection() {
                           </motion.div>
                         )}
 
-                        {/* Level Badge */}
-                        <motion.div
-                          className="absolute top-4 left-4"
-                          initial={{ opacity: 0, scale: 0 }}
-                          whileInView={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.1, type: "spring" }}
-                        >
-                          <span className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-lg backdrop-blur-sm border border-primary-400/30">
-                            {video.level}
-                          </span>
-                        </motion.div>
 
-                        {/* Views Badge */}
-                        {video.views !== undefined && (
-                          <motion.div
-                            className="absolute top-4 right-4 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-lg"
-                            initial={{ opacity: 0, x: 10 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.15 }}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            {video.views > 1000 ? `${(video.views / 1000).toFixed(1)}K` : video.views}
-                          </motion.div>
-                        )}
                       </div>
                     </div>
 
@@ -515,10 +512,15 @@ export default function VideoSection() {
                         )}
                       </div>
 
-                      {/* العنوان */}
-                      <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
-                        {video.title}
-                      </h3>
+                      {/* العنوان والمستوى */}
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h3 className="text-lg font-bold flex-1 text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
+                          {video.title}
+                        </h3>
+                        <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
+                          {video.level}
+                        </span>
+                      </div>
 
                       {/* الوصف */}
                       <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">
@@ -533,33 +535,6 @@ export default function VideoSection() {
               ))}
             </motion.div>
           </AnimatePresence>
-        )}
-
-        {/* رسالة عدم وجود فيديوهات */}
-        {!loading && filteredVideos.length === 0 && (
-          <motion.div
-            className="text-center py-20"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, type: "spring" }}
-          >
-            <motion.div
-              initial={{ rotate: -180, scale: 0 }}
-              animate={{ rotate: 0, scale: 1 }}
-              transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
-              className="inline-block mb-6"
-            >
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6">
-                <BookOpen className="w-16 h-16 text-gray-400" />
-              </div>
-            </motion.div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-              لا توجد فيديوهات
-            </h3>
-            <p className="text-lg text-gray-600 dark:text-gray-400">
-              لا توجد فيديوهات في هذا التصنيف حالياً
-            </p>
-          </motion.div>
         )}
       </div>
 

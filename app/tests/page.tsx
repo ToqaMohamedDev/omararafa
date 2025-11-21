@@ -553,7 +553,7 @@ export default function TestsPage() {
           الاختبارات التعليمية
         </h1>
         <motion.div
-          className="w-32 h-1.5 bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 mx-auto rounded-full mb-6"
+          className="w-32 h-1.5 bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 mx-auto rounded-full mb-6 opacity-70"
           initial={{ width: 0 }}
           animate={{ width: 128 }}
           transition={{ duration: 0.6, delay: 0.2 }}
@@ -598,18 +598,20 @@ export default function TestsPage() {
               whileHover={{ y: -10, scale: 1.03 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              <div className="flex items-center justify-between mb-4">
-                <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-DEFAULT px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold shadow-sm">
+              <div className="mb-4">
+                <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold shadow-sm">
                   {test.category}
-                </span>
-                <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold">
-                  {test.level}
                 </span>
               </div>
 
-              <h2 className="text-xl md:text-2xl font-bold mb-3 text-gray-900 dark:text-white group-hover:text-primary-DEFAULT transition-colors line-clamp-2">
-                {test.title}
-              </h2>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <h2 className="text-xl md:text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2">
+                  {test.title}
+                </h2>
+                <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
+                  {test.level}
+                </span>
+              </div>
               <p className="text-gray-600 dark:text-gray-400 mb-5 text-sm md:text-base line-clamp-2 leading-relaxed">
                 {test.description}
               </p>

@@ -69,8 +69,8 @@ interface Course {
   id: string;
   title: string;
   description: string;
-  videoUrl: string;
-  thumbnailUrl: string;
+  videoUrl?: string;
+  thumbnailUrl?: string;
   duration: string;
   level: string;
   instructor: string;
@@ -82,13 +82,19 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
+  const [activeTab, setActiveTab] = useState<"categories" | "courseCategories" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
   
-  // Categories
+  // Categories (for videos)
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
   const [categoryForm, setCategoryForm] = useState({ name: "" });
+  
+  // Course Categories (for courses)
+  const [courseCategories, setCourseCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [showCourseCategoryForm, setShowCourseCategoryForm] = useState(false);
+  const [editingCourseCategory, setEditingCourseCategory] = useState<{ id: string; name: string } | null>(null);
+  const [courseCategoryForm, setCourseCategoryForm] = useState({ name: "" });
   
   // Videos
   const [videos, setVideos] = useState<Video[]>([]);
@@ -262,6 +268,22 @@ export default function AdminPage() {
         }
       }
       setCategories(categoriesData);
+
+      // Load course categories
+      let courseCategoriesData: Array<{ id: string; name: string }> = [];
+      if (db) {
+        try {
+          const courseCategoriesQuery = query(collection(db, "courseCategories"), orderBy("name"));
+          const courseCategoriesSnapshot = await getDocs(courseCategoriesQuery);
+          courseCategoriesData = courseCategoriesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name,
+          }));
+        } catch (error) {
+          console.error("Error fetching course categories from Firestore:", error);
+        }
+      }
+      setCourseCategories(courseCategoriesData);
 
       // Load videos
       let videosData: Video[] = [];
@@ -522,7 +544,7 @@ export default function AdminPage() {
     setConfirmModal({
       show: true,
       title: "تأكيد الحذف",
-      message: "هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك فيديوهات أو دورات تستخدمه.",
+      message: "هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك فيديوهات أو كورسات تستخدمه.",
       confirmText: "حذف",
       cancelText: "إلغاء",
       onConfirm: async () => {
@@ -534,7 +556,7 @@ export default function AdminPage() {
         }
 
         try {
-          // التحقق من وجود فيديوهات أو دورات تستخدم هذا التصنيف
+          // التحقق من وجود فيديوهات أو كورسات تستخدم هذا التصنيف
           const videosQuery = query(collection(db, "videos"), where("category", "==", id));
           const coursesQuery = query(collection(db, "courses"), where("category", "==", id));
           
@@ -546,7 +568,7 @@ export default function AdminPage() {
           if (!videosSnapshot.empty || !coursesSnapshot.empty) {
             const items = [];
             if (!videosSnapshot.empty) items.push("فيديوهات");
-            if (!coursesSnapshot.empty) items.push("دورات");
+            if (!coursesSnapshot.empty) items.push("كورسات");
             setMessage({ type: "error", text: `لا يمكن حذف التصنيف: يوجد ${items.join(" و ")} تستخدم هذا التصنيف` });
             return;
           }
@@ -559,6 +581,130 @@ export default function AdminPage() {
     } catch (error: any) {
           console.error("Error deleting category:", error);
           setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف التصنيف" });
+    }
+      },
+    });
+  };
+
+  // Course Category functions
+  const handleCourseCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    if (!db) {
+      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const categoryName = courseCategoryForm.name.trim();
+      if (!categoryName) {
+        setMessage({ type: "error", text: "اسم التصنيف مطلوب" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (editingCourseCategory) {
+        // تحديث التصنيف
+        const courseCategoriesQuery = query(
+          collection(db, "courseCategories"),
+          where("name", "==", categoryName)
+        );
+        const existingCategories = await getDocs(courseCategoriesQuery);
+        
+        const hasDuplicate = existingCategories.docs.some(
+          (doc) => doc.id !== editingCourseCategory.id
+        );
+
+        if (hasDuplicate) {
+          setMessage({ type: "error", text: "اسم التصنيف موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        const categoryRef = doc(db, "courseCategories", editingCourseCategory.id);
+        await updateDoc(categoryRef, {
+          name: categoryName,
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم تحديث تصنيف الكورسات بنجاح" });
+      } else {
+        // إضافة تصنيف جديد
+        const courseCategoriesQuery = query(
+          collection(db, "courseCategories"),
+          where("name", "==", categoryName)
+        );
+        const existingCategories = await getDocs(courseCategoriesQuery);
+
+        if (!existingCategories.empty) {
+          setMessage({ type: "error", text: "اسم التصنيف موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        await addDoc(collection(db, "courseCategories"), {
+          name: categoryName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        setMessage({ type: "success", text: "تم إضافة تصنيف الكورسات بنجاح" });
+      }
+
+        setShowCourseCategoryForm(false);
+        setEditingCourseCategory(null);
+        setCourseCategoryForm({ name: "" });
+        loadData();
+    } catch (error: any) {
+      console.error("Error saving course category:", error);
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ تصنيف الكورسات" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditCourseCategory = (category: { id: string; name: string }) => {
+    setEditingCourseCategory(category);
+    setCourseCategoryForm({ name: category.name });
+    setShowCourseCategoryForm(true);
+  };
+
+  const handleDeleteCourseCategory = async (id: string) => {
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك كورسات تستخدمه.",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
+
+        try {
+          // التحقق من وجود كورسات تستخدم هذا التصنيف
+          const coursesQuery = query(collection(db, "courses"), where("category", "==", id));
+          const coursesSnapshot = await getDocs(coursesQuery);
+
+          if (!coursesSnapshot.empty) {
+            setMessage({ type: "error", text: `لا يمكن حذف التصنيف: يوجد كورسات تستخدم هذا التصنيف` });
+            return;
+          }
+
+          const categoryRef = doc(db, "courseCategories", id);
+          await deleteDoc(categoryRef);
+
+        setMessage({ type: "success", text: "تم حذف تصنيف الكورسات بنجاح" });
+        loadData();
+    } catch (error: any) {
+          console.error("Error deleting course category:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف تصنيف الكورسات" });
     }
       },
     });
@@ -923,7 +1069,7 @@ export default function AdminPage() {
 
     try {
       if (!courseForm.category) {
-        setMessage({ type: "error", text: "يجب اختيار تصنيف للدورة" });
+        setMessage({ type: "error", text: "يجب اختيار تصنيف للكورس" });
         setSubmitting(false);
         return;
       }
@@ -935,7 +1081,7 @@ export default function AdminPage() {
       }
 
       // التحقق من وجود التصنيف
-      const categoryRef = doc(db, "categories", courseForm.category);
+      const categoryRef = doc(db, "courseCategories", courseForm.category);
       const categoryDoc = await getDoc(categoryRef);
       if (!categoryDoc.exists()) {
         setMessage({ type: "error", text: "التصنيف المحدد غير موجود" });
@@ -944,12 +1090,11 @@ export default function AdminPage() {
       }
 
       if (editingCourse) {
-        // تحديث الدورة
+        // تحديث الكورس
         const courseRef = doc(db, "courses", editingCourse.id);
         await updateDoc(courseRef, {
           title: courseForm.title,
           description: courseForm.description,
-          videoUrl: courseForm.videoUrl || "",
           thumbnailUrl: courseForm.thumbnailUrl || "",
           duration: courseForm.duration || "0 ساعة",
           level: courseForm.level || "مبتدئ",
@@ -958,13 +1103,20 @@ export default function AdminPage() {
           updatedAt: serverTimestamp(),
         });
 
-        setMessage({ type: "success", text: "تم تحديث الدورة بنجاح" });
+        // إذا كان videoUrl موجود، تحديث private/source
+        if (courseForm.videoUrl) {
+          const privateSourceRef = doc(db, "courses", editingCourse.id, "private", "source");
+          await setDoc(privateSourceRef, {
+            url: courseForm.videoUrl,
+          }, { merge: true });
+        }
+
+        setMessage({ type: "success", text: "تم تحديث الكورس بنجاح" });
       } else {
-        // إضافة دورة جديدة
-        await addDoc(collection(db, "courses"), {
+        // إضافة كورس جديد
+        const courseRef = await addDoc(collection(db, "courses"), {
           title: courseForm.title,
           description: courseForm.description,
-          videoUrl: courseForm.videoUrl || "",
           thumbnailUrl: courseForm.thumbnailUrl || "",
           duration: courseForm.duration || "0 ساعة",
           level: courseForm.level || "مبتدئ",
@@ -977,7 +1129,15 @@ export default function AdminPage() {
           updatedAt: serverTimestamp(),
         });
 
-        setMessage({ type: "success", text: "تم إضافة الدورة بنجاح" });
+        // إنشاء private subcollection مع videoUrl
+        if (courseForm.videoUrl) {
+          const privateSourceRef = doc(db, "courses", courseRef.id, "private", "source");
+          await setDoc(privateSourceRef, {
+            url: courseForm.videoUrl,
+          });
+        }
+
+        setMessage({ type: "success", text: "تم إضافة الكورس بنجاح" });
       }
 
         setShowCourseForm(false);
@@ -995,18 +1155,34 @@ export default function AdminPage() {
         loadData();
     } catch (error: any) {
       console.error("Error saving course:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الدورة" });
+      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الكورس" });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleEditCourse = (course: Course) => {
+  const handleEditCourse = async (course: Course) => {
     setEditingCourse(course);
+    
+    // جلب videoUrl من private subcollection
+    let videoUrl = course.videoUrl || "";
+    if (db && course.id) {
+      try {
+        const privateSourceRef = doc(db, "courses", course.id, "private", "source");
+        const privateSourceDoc = await getDoc(privateSourceRef);
+        if (privateSourceDoc.exists()) {
+          const data = privateSourceDoc.data();
+          videoUrl = data.url || "";
+        }
+      } catch (error) {
+        console.error("Error fetching course URL from private subcollection:", error);
+      }
+    }
+    
     setCourseForm({
       title: course.title,
       description: course.description,
-      videoUrl: course.videoUrl,
+      videoUrl: videoUrl,
       thumbnailUrl: course.thumbnailUrl || "",
       duration: course.duration,
       level: course.level,
@@ -1020,7 +1196,7 @@ export default function AdminPage() {
     setConfirmModal({
       show: true,
       title: "تأكيد الحذف",
-      message: "هل أنت متأكد من حذف هذه الدورة؟",
+      message: "هل أنت متأكد من حذف هذا الكورس؟",
       confirmText: "حذف",
       cancelText: "إلغاء",
       onConfirm: async () => {
@@ -1032,14 +1208,22 @@ export default function AdminPage() {
         }
 
         try {
+          // حذف private subcollection أولاً
+          const privateSourceRef = doc(db, "courses", id, "private", "source");
+          const privateSourceDoc = await getDoc(privateSourceRef);
+          if (privateSourceDoc.exists()) {
+            await deleteDoc(privateSourceRef);
+          }
+
+          // حذف المستند الرئيسي
           const courseRef = doc(db, "courses", id);
           await deleteDoc(courseRef);
 
-        setMessage({ type: "success", text: "تم حذف الدورة بنجاح" });
+        setMessage({ type: "success", text: "تم حذف الكورس بنجاح" });
         loadData();
         } catch (error: any) {
           console.error("Error deleting course:", error);
-          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الدورة" });
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الكورس" });
         }
       },
     });
@@ -1166,7 +1350,7 @@ export default function AdminPage() {
               لوحة التحكم
             </h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-              إدارة التصنيفات والفيديوهات والاختبارات والدورات
+              إدارة التصنيفات والفيديوهات والاختبارات والكورسات
             </p>
           </div>
         </div>
@@ -1197,10 +1381,11 @@ export default function AdminPage() {
         {/* Tabs */}
         <div className="flex gap-2 md:gap-4 mb-8 md:mb-12 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           {[
-            { id: "categories" as const, label: "التصنيفات", icon: Tag },
+            { id: "categories" as const, label: "تصنيفات الفيديوهات", icon: Tag },
+            { id: "courseCategories" as const, label: "تصنيفات الكورسات", icon: BookOpen },
             { id: "videos" as const, label: "الفيديوهات", icon: Video },
             { id: "tests" as const, label: "الاختبارات", icon: FileText },
-            { id: "courses" as const, label: "الدورات", icon: BookOpen },
+            { id: "courses" as const, label: "الكورسات", icon: BookOpen },
             { id: "subscriptions" as const, label: "الاشتراكات", icon: CreditCard },
             { id: "messages" as const, label: "الرسائل", icon: MessageSquare },
           ].map((tab) => (
@@ -1328,6 +1513,128 @@ export default function AdminPage() {
                         </button>
                         <button
                           onClick={() => handleDeleteCategory(category.id)}
+                          className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-300 hover:scale-110"
+                        >
+                          <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Course Categories Tab */}
+        {activeTab === "courseCategories" && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                إدارة تصنيفات الكورسات
+              </h2>
+              <button
+                onClick={() => {
+                  setEditingCourseCategory(null);
+                  setCourseCategoryForm({ name: "" });
+                  setShowCourseCategoryForm(true);
+                }}
+                className="flex items-center gap-2 btn-primary w-full sm:w-auto"
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-sm md:text-base">إضافة تصنيف</span>
+              </button>
+            </div>
+
+            {/* Course Category Form */}
+            <AnimatePresence>
+              {showCourseCategoryForm && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="card mb-6 md:mb-8 card-padding"
+                >
+                  <form onSubmit={handleCourseCategorySubmit} className="form-spacing">
+                    <div>
+                      <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">
+                        اسم التصنيف
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={courseCategoryForm.name}
+                        onChange={(e) => setCourseCategoryForm({ name: e.target.value })}
+                        placeholder="مثال: النحو، البلاغة، الأدب، النصوص، القراءة..."
+                        className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                      />
+                    </div>
+                    <div className="flex gap-4">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="btn-primary flex-1"
+                      >
+                        {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : editingCourseCategory ? "تحديث" : "إضافة"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCourseCategoryForm(false);
+                          setEditingCourseCategory(null);
+                        }}
+                        className="px-6 py-2 border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Course Categories List */}
+            {courseCategories.length === 0 && !loading ? (
+              <div className="text-center py-12 card card-padding">
+                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
+                  لا توجد تصنيفات للكورسات. أضف تصنيفاً جديداً للبدء.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  يجب إضافة تصنيف على الأقل قبل إضافة كورسات.
+                </p>
+              </div>
+            ) : courseCategories.length === 0 && loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <CategoryCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {courseCategories.map((category) => (
+                  <motion.div
+                    key={category.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="card card-padding hover:shadow-xl transition-shadow duration-300"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#FF8C42] flex items-center justify-center shadow-md">
+                          <BookOpen className="w-6 h-6 text-white" strokeWidth={2.5} />
+                        </div>
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{category.name}</h3>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditCourseCategory(category)}
+                          className="p-2.5 text-[#FF6B35] hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-300 hover:scale-110"
+                        >
+                          <Edit className="w-4 h-4" strokeWidth={2.5} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCourseCategory(category.id)}
                           className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-300 hover:scale-110"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={2.5} />
@@ -1800,7 +2107,7 @@ export default function AdminPage() {
           <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                إدارة الدورات
+                إدارة الكورسات
               </h2>
               <button
                 onClick={() => {
@@ -1820,7 +2127,7 @@ export default function AdminPage() {
                 className="flex items-center gap-2 btn-primary w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                <span className="text-sm md:text-base">إضافة دورة</span>
+                <span className="text-sm md:text-base">إضافة كورس</span>
               </button>
             </div>
 
@@ -1836,7 +2143,7 @@ export default function AdminPage() {
                   <form onSubmit={handleCourseSubmit} className="form-spacing">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                       <div>
-                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">عنوان الدورة</label>
+                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">عنوان الكورس</label>
                         <input
                           type="text"
                           required
@@ -1897,10 +2204,10 @@ export default function AdminPage() {
                       </div>
                       <div>
                         <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">التصنيف</label>
-                        {categories.length === 0 ? (
+                        {courseCategories.length === 0 ? (
                           <div className="p-4 border border-yellow-300 dark:border-yellow-700 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
                             <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                              يجب إضافة تصنيف أولاً من قسم "التصنيفات"
+                              يجب إضافة تصنيف أولاً من قسم "تصنيفات الكورسات"
                             </p>
                           </div>
                         ) : (
@@ -1911,7 +2218,7 @@ export default function AdminPage() {
                             className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                           >
                             <option value="">اختر التصنيف</option>
-                            {categories.map((cat) => (
+                            {courseCategories.map((cat) => (
                               <option key={cat.id} value={cat.id}>
                                 {cat.name}
                               </option>
@@ -1965,7 +2272,7 @@ export default function AdminPage() {
               <div className="text-center py-12 card card-padding">
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg text-gray-600 dark:text-gray-400">
-                  لا توجد دورات. أضف دورة جديدة للبدء.
+                  لا توجد كورسات. أضف كورس جديد للبدء.
                 </p>
               </div>
             ) : (

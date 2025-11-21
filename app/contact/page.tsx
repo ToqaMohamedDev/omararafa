@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle, MessageSquare } from "lucide-react";
+import { Phone, MapPin, Clock, Send, CheckCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/hooks/useSession";
 import { db } from "@/lib/firebase-client";
@@ -71,12 +71,6 @@ export default function ContactPage() {
   };
 
   const contactInfo = [
-    {
-      icon: Mail,
-      title: "البريد الإلكتروني",
-      content: "omar.arafa@example.com",
-      description: "أرسل لنا بريداً إلكترونياً",
-    },
     {
       icon: Phone,
       title: "الهاتف",
