@@ -17,12 +17,10 @@ service cloud.firestore {
 
     // دالة للتحقق من أن المستخدم أدمن
     // تفترض هذه الدالة وجود كولكشن باسم 'roles'
-    // ويجب أن يكون اسم المستند (ID) هو نفسه (UID) الخاص بالمستخدم
-    // ويحتوي المستند على حقل 'role' قيمته 'admin'
+    // إذا وُجد document في roles/{userId}، فهو admin
     function isAdmin() {
       return request.auth != null &&
-             exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+             exists(/databases/$(database)/documents/roles/$(request.auth.uid));
     }
 
     // ---------------------------------------------------------
@@ -31,8 +29,10 @@ service cloud.firestore {
 
     // قواعد كولكشن الأدوار (لحماية بيانات الأدمن نفسه)
     match /roles/{userId} {
+      // السماح للمستخدم بقراءة role الخاص به فقط
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // يفضل أن يتم تعيين الأدمن يدوياً من لوحة تحكم فايربيس
+      // السماح للأدمن بإنشاء/تحديث الأدوار (لكل المستخدمين)
+      allow write: if isAdmin();
     }
 
     match /users/{userId} {
@@ -79,6 +79,19 @@ service cloud.firestore {
       // السماح بالقراءة للمسجلين، والكتابة للأدمن فقط
       allow read: if request.auth != null;
       allow write: if isAdmin();
+    }
+
+    // قواعد الرسائل (الشكاوي)
+    match /messages/{messageId} {
+      // المستخدم يمكنه قراءة رسائله فقط (بناءً على userId أو userEmail)
+      allow read: if request.auth != null && 
+                      (resource.data.userId == request.auth.uid || 
+                       resource.data.userEmail == request.auth.token.email ||
+                       isAdmin());
+      // أي شخص يمكنه إنشاء رسالة (حتى غير المسجلين)
+      allow create: if true;
+      // الأدمن فقط يمكنه تحديث/حذف الرسائل
+      allow update, delete: if isAdmin();
     }
 
     // منع الوصول لأي شيء آخر افتراضياً

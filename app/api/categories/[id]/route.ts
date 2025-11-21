@@ -7,10 +7,10 @@ export async function PUT(
 ) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json(
+      return NextResponse.json(
       { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update categories." },
-      { status: 503 }
-    );
+        { status: 503 }
+      );
   } catch (error: any) {
     console.error("Update category error:", error);
     return NextResponse.json(
@@ -27,10 +27,10 @@ export async function DELETE(
 ) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json(
+      return NextResponse.json(
       { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to delete categories." },
-      { status: 503 }
-    );
+        { status: 503 }
+      );
   } catch (error: any) {
     console.error("Delete category error:", error);
     return NextResponse.json(

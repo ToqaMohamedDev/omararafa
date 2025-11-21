@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Play, Clock, Eye, BookOpen, X, Sparkles, TrendingUp, Phone, AlertCircle, CheckCircle, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { VideoCardSkeleton, CategoryCardSkeleton } from "./Skeleton";
 import VideoPlayer from "./VideoPlayer";
 import { db, auth } from "@/lib/firebase-client";
 import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
@@ -305,6 +306,34 @@ export default function VideoSection() {
 
         {loading ? (
           <motion.div
+            className="space-y-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Categories Skeleton */}
+            {categoryList.length > 1 && (
+              <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-12 w-24 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                ))}
+              </div>
+            )}
+            
+            {/* Videos Grid Skeleton */}
+            <motion.div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <VideoCardSkeleton key={i} />
+              ))}
+            </motion.div>
+          </motion.div>
+        ) : filteredVideos.length === 0 ? (
+          <motion.div
             className="text-center py-20"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -317,7 +346,7 @@ export default function VideoSection() {
             >
               <div className="w-16 h-16 border-4 border-primary-200 dark:border-primary-900 border-t-primary-600 rounded-full"></div>
             </motion.div>
-            <p className="text-lg text-gray-600 dark:text-gray-400 font-medium">جاري تحميل الفيديوهات...</p>
+            <p className="text-lg text-gray-600 dark:text-gray-400 font-medium">لا توجد فيديوهات</p>
           </motion.div>
         ) : (
           <AnimatePresence mode="wait">
@@ -386,7 +415,7 @@ export default function VideoSection() {
                       });
                     } else {
                       // إذا لم يكن المستخدم مشترك، نفتح الفيديو (لكن لن يعمل بدون URL)
-                      setSelectedVideo(video);
+                    setSelectedVideo(video);
                     }
                   }}
                 >
@@ -589,7 +618,7 @@ export default function VideoSection() {
                   <div className="space-y-3 mb-6">
                     {/* WhatsApp Button */}
                     <a
-                      href="https://wa.me/201146525436"
+                      href="https://wa.me/2001146525436"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"
@@ -657,7 +686,7 @@ export default function VideoSection() {
                   <div className="space-y-3 mb-6">
                     {/* WhatsApp Button */}
                     <a
-                      href="https://wa.me/201146525436"
+                      href="https://wa.me/2001146525436"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"

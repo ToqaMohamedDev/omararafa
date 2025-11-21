@@ -30,11 +30,13 @@ import {
   X,
   Check,
   Tag,
-  CreditCard
+  CreditCard,
+  Search,
+  AlertTriangle,
+  MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const ADMIN_EMAIL = "dzggghjg@gmail.com";
+import { VideoCardSkeleton, CategoryCardSkeleton, TestCardSkeleton, CourseCardSkeleton, SubscriptionCardSkeleton, MessageCardSkeleton, AdminDashboardSkeleton } from "@/components/Skeleton";
 
 interface Video {
   id: string;
@@ -80,7 +82,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "videos" | "tests" | "courses" | "subscriptions">("categories");
+  const [activeTab, setActiveTab] = useState<"categories" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
   
   // Categories
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -142,12 +144,48 @@ export default function AdminPage() {
     adminId: string;
     createdAt: any;
     endsAt: any;
+    userName?: string;
+    userEmail?: string;
+    userPhone?: string;
   }>>([]);
   const [showSubscriptionForm, setShowSubscriptionForm] = useState(false);
   const [subscriptionForm, setSubscriptionForm] = useState({ userId: "" });
+  const [subscriptionSearch, setSubscriptionSearch] = useState("");
+
+  // Messages
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    userId: string | null;
+    userName: string;
+    userEmail: string;
+    userPhone: string;
+    subject: string;
+    message: string;
+    createdAt: any;
+    read: boolean;
+  }>>([]);
+  const [messageSearch, setMessageSearch] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
+  
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({
+    show: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    confirmText: "تأكيد",
+    cancelText: "إلغاء",
+  });
 
   const checkAdmin = useCallback(async () => {
     // إذا كان session لا يزال في حالة loading، لا تفعل شيء
@@ -156,42 +194,33 @@ export default function AdminPage() {
     }
 
     // بعد انتهاء loading، تحقق من المصادقة
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated || !user || !user.uid) {
       setLoading(false);
       return;
     }
 
-    if (user.email !== ADMIN_EMAIL) {
-      router.push("/");
+    if (!db) {
+      setLoading(false);
       return;
     }
 
     try {
-      const idToken = await auth?.currentUser?.getIdToken();
-      if (!idToken) {
-        router.push("/auth/login");
-        return;
-      }
+      // التحقق من وجود document في roles collection للمستخدم
+      // إذا وُجد document، فهو admin (بغض النظر عن محتوى الـ document)
+      const roleRef = doc(db, "roles", user.uid);
+      const roleDoc = await getDoc(roleRef);
 
-      const response = await fetch("/api/admin/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
-
-      if (response.ok) {
-        setIsAdmin(true);
-        loadData();
-      } else if (response.status === 503) {
-        // في development، Firebase Admin قد لا يكون مهيأ
-        // لكن يمكننا التحقق من email المستخدم مباشرة
-        if (user.email === ADMIN_EMAIL) {
+      console.log("Admin check - User UID:", user.uid);
+      console.log("Admin check - Document exists:", roleDoc.exists());
+      
+      if (roleDoc.exists()) {
+        // المستخدم admin - يوجد document في roles collection
+        console.log("User is admin - document found in roles collection");
           setIsAdmin(true);
           loadData();
         } else {
-          router.push("/");
-        }
-      } else {
+        // لا يوجد document - المستخدم ليس admin
+        console.log("User is NOT admin - no document found in roles collection");
         router.push("/");
       }
     } catch (error) {
@@ -200,7 +229,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, isAuthenticated, sessionLoading, router]);
+  }, [user, isAuthenticated, sessionLoading, router, db]);
 
   useEffect(() => {
     // انتظر حتى يتم تحميل حالة المصادقة قبل التحقق
@@ -210,6 +239,7 @@ export default function AdminPage() {
   }, [sessionLoading, checkAdmin]);
 
   const loadData = async () => {
+    setDataLoading(true);
     try {
       // Load categories
       let categoriesData: Array<{ id: string; name: string }> = [];
@@ -311,23 +341,84 @@ export default function AdminPage() {
         try {
           const subscriptionsQuery = query(collection(db, "subscriptions"), orderBy("createdAt", "desc"));
           const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
-          const subscriptionsData = subscriptionsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Array<{
-            id: string;
-            userId: string;
-            adminId: string;
-            createdAt: any;
-            endsAt: any;
-          }>;
+          const subscriptionsData = await Promise.all(
+            subscriptionsSnapshot.docs.map(async (subscriptionDoc) => {
+              const data = subscriptionDoc.data();
+              let userName = data.userName || "";
+              let userEmail = data.userEmail || "";
+              let userPhone = data.userPhone || "";
+              
+              // إذا لم تكن البيانات موجودة، نحاول جلبها من users collection
+              if ((!userName || !userEmail) && db) {
+                try {
+                  const userRef = doc(db, "users", data.userId);
+                  const userDoc = await getDoc(userRef);
+                  if (userDoc.exists()) {
+                    const userData = userDoc.data() as { name?: string; email?: string; phone?: string };
+                    userName = userData.name || userName || "";
+                    userEmail = userData.email || userEmail || "";
+                    userPhone = userData.phone || userPhone || "";
+                    
+                    // تحديث الاشتراك بالبيانات
+                    if (!data.userName || !data.userEmail) {
+                      await updateDoc(subscriptionDoc.ref, {
+                        userName: userName,
+                        userEmail: userEmail,
+                        userPhone: userPhone,
+                      });
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Error fetching user data for ${data.userId}:`, error);
+                }
+              }
+              
+              return {
+                id: subscriptionDoc.id,
+                userId: data.userId,
+                adminId: data.adminId,
+                createdAt: data.createdAt,
+                endsAt: data.endsAt,
+                userName: userName,
+                userEmail: userEmail,
+                userPhone: userPhone,
+              };
+            })
+          );
           setSubscriptions(subscriptionsData);
         } catch (error: any) {
           console.error("Error fetching subscriptions from Firestore:", error);
         }
       }
+
+      // Load messages
+      if (db && auth?.currentUser) {
+        try {
+          const messagesQuery = query(collection(db, "messages"), orderBy("createdAt", "desc"));
+          const messagesSnapshot = await getDocs(messagesQuery);
+          const messagesData = messagesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Array<{
+            id: string;
+            userId: string | null;
+            userName: string;
+            userEmail: string;
+            userPhone: string;
+            subject: string;
+            message: string;
+            createdAt: any;
+            read: boolean;
+          }>;
+          setMessages(messagesData);
+        } catch (error: any) {
+          console.error("Error fetching messages from Firestore:", error);
+        }
+      }
     } catch (error) {
       console.error("Load data error:", error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -409,10 +500,10 @@ export default function AdminPage() {
         setMessage({ type: "success", text: "تم إضافة التصنيف بنجاح" });
       }
 
-      setShowCategoryForm(false);
-      setEditingCategory(null);
-      setCategoryForm({ name: "" });
-      loadData();
+        setShowCategoryForm(false);
+        setEditingCategory(null);
+        setCategoryForm({ name: "" });
+        loadData();
     } catch (error: any) {
       console.error("Error saving category:", error);
       setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ التصنيف" });
@@ -428,40 +519,49 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك فيديوهات أو دورات تستخدمه.")) return;
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا التصنيف؟ سيتم رفض الحذف إذا كان هناك فيديوهات أو دورات تستخدمه.",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
 
-    if (!db) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
-      return;
-    }
+        try {
+          // التحقق من وجود فيديوهات أو دورات تستخدم هذا التصنيف
+          const videosQuery = query(collection(db, "videos"), where("category", "==", id));
+          const coursesQuery = query(collection(db, "courses"), where("category", "==", id));
+          
+          const [videosSnapshot, coursesSnapshot] = await Promise.all([
+            getDocs(videosQuery),
+            getDocs(coursesQuery)
+          ]);
 
-    try {
-      // التحقق من وجود فيديوهات أو دورات تستخدم هذا التصنيف
-      const videosQuery = query(collection(db, "videos"), where("category", "==", id));
-      const coursesQuery = query(collection(db, "courses"), where("category", "==", id));
-      
-      const [videosSnapshot, coursesSnapshot] = await Promise.all([
-        getDocs(videosQuery),
-        getDocs(coursesQuery)
-      ]);
+          if (!videosSnapshot.empty || !coursesSnapshot.empty) {
+            const items = [];
+            if (!videosSnapshot.empty) items.push("فيديوهات");
+            if (!coursesSnapshot.empty) items.push("دورات");
+            setMessage({ type: "error", text: `لا يمكن حذف التصنيف: يوجد ${items.join(" و ")} تستخدم هذا التصنيف` });
+            return;
+          }
 
-      if (!videosSnapshot.empty || !coursesSnapshot.empty) {
-        const items = [];
-        if (!videosSnapshot.empty) items.push("فيديوهات");
-        if (!coursesSnapshot.empty) items.push("دورات");
-        setMessage({ type: "error", text: `لا يمكن حذف التصنيف: يوجد ${items.join(" و ")} تستخدم هذا التصنيف` });
-        return;
-      }
+          const categoryRef = doc(db, "categories", id);
+          await deleteDoc(categoryRef);
 
-      const categoryRef = doc(db, "categories", id);
-      await deleteDoc(categoryRef);
-
-      setMessage({ type: "success", text: "تم حذف التصنيف بنجاح" });
-      loadData();
+        setMessage({ type: "success", text: "تم حذف التصنيف بنجاح" });
+        loadData();
     } catch (error: any) {
-      console.error("Error deleting category:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف التصنيف" });
+          console.error("Error deleting category:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف التصنيف" });
     }
+      },
+    });
   };
 
   // Video functions
@@ -508,7 +608,7 @@ export default function AdminPage() {
           category: videoForm.category,
           level: videoForm.level || "مبتدئ",
           updatedAt: serverTimestamp(),
-        });
+      });
 
         // إذا كان videoUrl موجود، تحديث private/source
         if (videoForm.videoUrl) {
@@ -543,17 +643,17 @@ export default function AdminPage() {
         setMessage({ type: "success", text: "تم إضافة الفيديو بنجاح" });
       }
 
-      setShowVideoForm(false);
-      setEditingVideo(null);
-      setVideoForm({
-        title: "",
-        videoUrl: "",
-        thumbnailUrl: "",
-        description: "",
-        category: "",
-        level: "مبتدئ",
-      });
-      loadData();
+        setShowVideoForm(false);
+        setEditingVideo(null);
+        setVideoForm({
+          title: "",
+          videoUrl: "",
+          thumbnailUrl: "",
+          description: "",
+          category: "",
+          level: "مبتدئ",
+        });
+        loadData();
     } catch (error: any) {
       console.error("Error saving video:", error);
       setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الفيديو" });
@@ -592,31 +692,40 @@ export default function AdminPage() {
   };
 
   const handleDeleteVideo = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الفيديو؟")) return;
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا الفيديو؟",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
 
-    if (!db) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
-      return;
-    }
+        try {
+          // حذف private subcollection أولاً
+          const privateSourceRef = doc(db, "videos", id, "private", "source");
+          const privateSourceDoc = await getDoc(privateSourceRef);
+          if (privateSourceDoc.exists()) {
+            await deleteDoc(privateSourceRef);
+          }
 
-    try {
-      // حذف private subcollection أولاً
-      const privateSourceRef = doc(db, "videos", id, "private", "source");
-      const privateSourceDoc = await getDoc(privateSourceRef);
-      if (privateSourceDoc.exists()) {
-        await deleteDoc(privateSourceRef);
-      }
+          // حذف المستند الرئيسي
+          const videoRef = doc(db, "videos", id);
+          await deleteDoc(videoRef);
 
-      // حذف المستند الرئيسي
-      const videoRef = doc(db, "videos", id);
-      await deleteDoc(videoRef);
-
-      setMessage({ type: "success", text: "تم حذف الفيديو بنجاح" });
-      loadData();
+        setMessage({ type: "success", text: "تم حذف الفيديو بنجاح" });
+        loadData();
     } catch (error: any) {
-      console.error("Error deleting video:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الفيديو" });
+          console.error("Error deleting video:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الفيديو" });
     }
+      },
+    });
   };
 
   // Test functions
@@ -687,17 +796,17 @@ export default function AdminPage() {
         setMessage({ type: "success", text: "تم إضافة الاختبار بنجاح" });
       }
 
-      setShowTestForm(false);
-      setEditingTest(null);
-      setTestForm({
-        title: "",
-        description: "",
-        duration: "",
-        category: "",
-        level: "مبتدئ",
-        questionsData: [],
-      });
-      loadData();
+        setShowTestForm(false);
+        setEditingTest(null);
+        setTestForm({
+          title: "",
+          description: "",
+          duration: "",
+          category: "",
+          level: "مبتدئ",
+          questionsData: [],
+        });
+        loadData();
     } catch (error: any) {
       console.error("Error saving test:", error);
       setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الاختبار" });
@@ -736,31 +845,40 @@ export default function AdminPage() {
   };
 
   const handleDeleteTest = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الاختبار؟")) return;
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا الاختبار؟",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
 
-    if (!db) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
-      return;
-    }
+        try {
+          // حذف private subcollection أولاً
+          const privateContentRef = doc(db, "tests", id, "private", "content");
+          const privateContentDoc = await getDoc(privateContentRef);
+          if (privateContentDoc.exists()) {
+            await deleteDoc(privateContentRef);
+          }
 
-    try {
-      // حذف private subcollection أولاً
-      const privateContentRef = doc(db, "tests", id, "private", "content");
-      const privateContentDoc = await getDoc(privateContentRef);
-      if (privateContentDoc.exists()) {
-        await deleteDoc(privateContentRef);
-      }
+          // حذف المستند الرئيسي
+          const testRef = doc(db, "tests", id);
+          await deleteDoc(testRef);
 
-      // حذف المستند الرئيسي
-      const testRef = doc(db, "tests", id);
-      await deleteDoc(testRef);
-
-      setMessage({ type: "success", text: "تم حذف الاختبار بنجاح" });
-      loadData();
+        setMessage({ type: "success", text: "تم حذف الاختبار بنجاح" });
+        loadData();
     } catch (error: any) {
-      console.error("Error deleting test:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاختبار" });
+          console.error("Error deleting test:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاختبار" });
     }
+      },
+    });
   };
 
   const addQuestion = () => {
@@ -862,19 +980,19 @@ export default function AdminPage() {
         setMessage({ type: "success", text: "تم إضافة الدورة بنجاح" });
       }
 
-      setShowCourseForm(false);
-      setEditingCourse(null);
-      setCourseForm({
-        title: "",
-        description: "",
-        videoUrl: "",
-        thumbnailUrl: "",
-        duration: "",
-        level: "مبتدئ",
-        instructor: "عمر عرفة",
-        category: "",
-      });
-      loadData();
+        setShowCourseForm(false);
+        setEditingCourse(null);
+        setCourseForm({
+          title: "",
+          description: "",
+          videoUrl: "",
+          thumbnailUrl: "",
+          duration: "",
+          level: "مبتدئ",
+          instructor: "عمر عرفة",
+          category: "",
+        });
+        loadData();
     } catch (error: any) {
       console.error("Error saving course:", error);
       setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الدورة" });
@@ -899,23 +1017,32 @@ export default function AdminPage() {
   };
 
   const handleDeleteCourse = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه الدورة؟")) return;
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذه الدورة؟",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
 
-    if (!db) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
-      return;
-    }
+        try {
+          const courseRef = doc(db, "courses", id);
+          await deleteDoc(courseRef);
 
-    try {
-      const courseRef = doc(db, "courses", id);
-      await deleteDoc(courseRef);
-
-      setMessage({ type: "success", text: "تم حذف الدورة بنجاح" });
-      loadData();
-    } catch (error: any) {
-      console.error("Error deleting course:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الدورة" });
-    }
+        setMessage({ type: "success", text: "تم حذف الدورة بنجاح" });
+        loadData();
+        } catch (error: any) {
+          console.error("Error deleting course:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الدورة" });
+        }
+      },
+    });
   };
 
   // Subscription functions
@@ -938,7 +1065,7 @@ export default function AdminPage() {
         return;
       }
 
-      // التحقق من وجود المستخدم
+      // التحقق من وجود المستخدم وجلب بياناته
       const userRef = doc(db, "users", userId);
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
@@ -946,6 +1073,12 @@ export default function AdminPage() {
         setSubmitting(false);
         return;
       }
+
+      // جلب بيانات المستخدم
+      const userData = userDoc.data();
+      const userName = userData.name || "";
+      const userEmail = userData.email || "";
+      const userPhone = userData.phone || "";
 
       // التحقق من وجود اشتراك سابق
       const subscriptionRef = doc(db, "subscriptions", userId);
@@ -962,12 +1095,15 @@ export default function AdminPage() {
       const endsAt = new Date(now);
       endsAt.setMonth(endsAt.getMonth() + 1);
 
-      // إنشاء الاشتراك
+      // إنشاء الاشتراك مع بيانات المستخدم
       await setDoc(subscriptionRef, {
         userId: userId,
         adminId: user.uid,
         createdAt: serverTimestamp(),
         endsAt: endsAt,
+        userName: userName,
+        userEmail: userEmail,
+        userPhone: userPhone,
       });
 
       setMessage({ type: "success", text: "تم إضافة الاشتراك بنجاح" });
@@ -983,32 +1119,37 @@ export default function AdminPage() {
   };
 
   const handleDeleteSubscription = async (userId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الاشتراك؟")) return;
+    setConfirmModal({
+      show: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا الاشتراك؟",
+      confirmText: "حذف",
+      cancelText: "إلغاء",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, show: false });
+        
+        if (!db) {
+          setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
+          return;
+        }
 
-    if (!db) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ. يرجى إعادة تحميل الصفحة." });
-      return;
-    }
+        try {
+          const subscriptionRef = doc(db, "subscriptions", userId);
+          await deleteDoc(subscriptionRef);
 
-    try {
-      const subscriptionRef = doc(db, "subscriptions", userId);
-      await deleteDoc(subscriptionRef);
-
-      setMessage({ type: "success", text: "تم حذف الاشتراك بنجاح" });
-      loadData();
-    } catch (error: any) {
-      console.error("Error deleting subscription:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاشتراك" });
-    }
+          setMessage({ type: "success", text: "تم حذف الاشتراك بنجاح" });
+          loadData();
+        } catch (error: any) {
+          console.error("Error deleting subscription:", error);
+          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاشتراك" });
+        }
+      },
+    });
   };
 
   // إظهار loading أثناء تحميل session أو التحقق من Admin
   if (sessionLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-DEFAULT" />
-      </div>
-    );
+    return <AdminDashboardSkeleton />;
   }
 
   if (!isAdmin) {
@@ -1061,6 +1202,7 @@ export default function AdminPage() {
             { id: "tests" as const, label: "الاختبارات", icon: FileText },
             { id: "courses" as const, label: "الدورات", icon: BookOpen },
             { id: "subscriptions" as const, label: "الاشتراكات", icon: CreditCard },
+            { id: "messages" as const, label: "الرسائل", icon: MessageSquare },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1145,7 +1287,7 @@ export default function AdminPage() {
             </AnimatePresence>
 
             {/* Categories List */}
-            {categories.length === 0 ? (
+            {categories.length === 0 && !loading ? (
               <div className="text-center py-12 card card-padding">
                 <Tag className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
@@ -1154,6 +1296,12 @@ export default function AdminPage() {
                 <p className="text-sm text-gray-500 dark:text-gray-500">
                   يجب إضافة تصنيف على الأقل قبل إضافة فيديوهات.
                 </p>
+              </div>
+            ) : categories.length === 0 && loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <CategoryCardSkeleton key={i} />
+                ))}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -1332,6 +1480,20 @@ export default function AdminPage() {
             </AnimatePresence>
 
             {/* Videos List */}
+            {dataLoading && videos.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <VideoCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : videos.length === 0 ? (
+              <div className="text-center py-12 card card-padding">
+                <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 dark:text-gray-400">
+                  لا توجد فيديوهات. أضف فيديو جديداً للبدء.
+                </p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {videos.map((video) => (
                 <motion.div
@@ -1373,6 +1535,7 @@ export default function AdminPage() {
                 </motion.div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1571,6 +1734,20 @@ export default function AdminPage() {
             </AnimatePresence>
 
             {/* Tests List */}
+            {dataLoading && tests.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <TestCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : tests.length === 0 ? (
+              <div className="text-center py-12 card card-padding">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 dark:text-gray-400">
+                  لا توجد اختبارات. أضف اختباراً جديداً للبدء.
+                </p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {tests.map((test) => (
                 <motion.div
@@ -1614,6 +1791,7 @@ export default function AdminPage() {
                 </motion.div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1777,6 +1955,20 @@ export default function AdminPage() {
             </AnimatePresence>
 
             {/* Courses List */}
+            {dataLoading && courses.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <CourseCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="text-center py-12 card card-padding">
+                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 dark:text-gray-400">
+                  لا توجد دورات. أضف دورة جديدة للبدء.
+                </p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {courses.map((course) => (
                 <motion.div
@@ -1824,6 +2016,7 @@ export default function AdminPage() {
                 </motion.div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1844,7 +2037,7 @@ export default function AdminPage() {
                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
                 <span className="text-sm md:text-base">إضافة اشتراك</span>
               </button>
-            </div>
+      </div>
 
             {/* Subscription Form */}
             <AnimatePresence>
@@ -1908,15 +2101,54 @@ export default function AdminPage() {
               )}
             </AnimatePresence>
 
+            {/* Search Bar */}
+            <div className="mb-6 md:mb-8">
+              <div className="relative">
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="ابحث بالاسم، الإيميل، رقم التليفون، أو User ID..."
+                  value={subscriptionSearch}
+                  onChange={(e) => setSubscriptionSearch(e.target.value)}
+                  className="w-full pl-4 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+
             {/* Subscriptions List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              {subscriptions.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600 dark:text-gray-400">لا توجد اشتراكات</p>
-                </div>
-              ) : (
-                subscriptions.map((subscription) => {
+            {dataLoading && subscriptions.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <SubscriptionCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {(() => {
+                  // فلترة الاشتراكات حسب البحث
+                  const filteredSubscriptions = subscriptions.filter((subscription) => {
+                    if (!subscriptionSearch.trim()) return true;
+                    const search = subscriptionSearch.toLowerCase();
+                    return (
+                      subscription.userId.toLowerCase().includes(search) ||
+                      (subscription.userName || "").toLowerCase().includes(search) ||
+                      (subscription.userEmail || "").toLowerCase().includes(search) ||
+                      (subscription.userPhone || "").includes(search)
+                    );
+                  });
+
+                  if (filteredSubscriptions.length === 0) {
+                    return (
+                      <div key="no-results" className="col-span-full text-center py-12">
+                        <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {subscriptionSearch ? "لا توجد نتائج للبحث" : "لا توجد اشتراكات"}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filteredSubscriptions.map((subscription) => {
                   const createdAt = subscription.createdAt?.toDate ? subscription.createdAt.toDate() : null;
                   const endsAt = subscription.endsAt?.toDate ? subscription.endsAt.toDate() : new Date(subscription.endsAt);
                   const isExpired = endsAt < new Date();
@@ -1932,16 +2164,33 @@ export default function AdminPage() {
                     >
                       <div className="card-padding">
                         <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h3 className="font-bold mb-2 text-base md:text-lg text-gray-900 dark:text-white">
-                              User ID: {subscription.userId.substring(0, 8)}...
-                            </h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                              Admin ID: {subscription.adminId.substring(0, 8)}...
-                            </p>
+                          <div className="flex-1">
+                            {subscription.userName && (
+                              <h3 className="font-bold mb-2 text-base md:text-lg text-gray-900 dark:text-white">
+                                {subscription.userName}
+                              </h3>
+                            )}
+                            {subscription.userEmail && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                {subscription.userEmail}
+                              </p>
+                            )}
+                            {subscription.userPhone && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                {subscription.userPhone}
+                              </p>
+                            )}
+                            <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
+                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                User ID:
+                              </p>
+                              <p className="text-xs text-gray-800 dark:text-gray-200 font-mono break-all">
+                                {subscription.userId}
+                              </p>
+                            </div>
                           </div>
                           {isExpired && (
-                            <span className="px-2 py-1 text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
+                            <span className="px-2 py-1 text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded whitespace-nowrap">
                               منتهي
                             </span>
                           )}
@@ -1980,12 +2229,275 @@ export default function AdminPage() {
                       </div>
                     </motion.div>
                   );
-                })
-              )}
+                  });
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Messages Tab */}
+        {activeTab === "messages" && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                الرسائل والشكاوي
+              </h2>
             </div>
+
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="ابحث بالاسم، الإيميل، رقم التليفون، أو الموضوع..."
+                  value={messageSearch}
+                  onChange={(e) => setMessageSearch(e.target.value)}
+                  className="w-full pl-4 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Messages List */}
+            {dataLoading && messages.length === 0 ? (
+              <div className="grid grid-cols-1 gap-4 md:gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <MessageCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:gap-6">
+                {(() => {
+                  // فلترة الرسائل حسب البحث
+                  const filteredMessages = messages.filter((message) => {
+                    if (!messageSearch.trim()) return true;
+                    const search = messageSearch.toLowerCase();
+                    return (
+                      message.userName.toLowerCase().includes(search) ||
+                      message.userEmail.toLowerCase().includes(search) ||
+                      message.userPhone.includes(search) ||
+                      message.subject.toLowerCase().includes(search) ||
+                      message.message.toLowerCase().includes(search)
+                    );
+                  });
+
+                  if (filteredMessages.length === 0) {
+                    return (
+                      <div className="col-span-full text-center py-12">
+                        <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {messageSearch ? "لا توجد نتائج للبحث" : "لا توجد رسائل"}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filteredMessages.map((message) => {
+                  const createdAt = message.createdAt?.toDate ? message.createdAt.toDate() : new Date(message.createdAt);
+                  
+                  return (
+                    <motion.div
+                      key={message.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`card overflow-hidden hover:shadow-xl transition-shadow duration-300 ${
+                        !message.read ? "border-2 border-primary-300 dark:border-primary-700" : ""
+                      }`}
+                    >
+                      <div className="card-padding">
+                        {/* Header with Subject and Status */}
+                        <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-bold text-lg md:text-xl text-gray-900 dark:text-white">
+                                {message.subject}
+                              </h3>
+                              {!message.read && (
+                                <span className="px-2 py-1 text-xs font-semibold bg-primary-DEFAULT text-white rounded whitespace-nowrap">
+                                  جديدة
+                                </span>
+                              )}
+                              {message.read && (
+                                <span className="px-2 py-1 text-xs font-semibold bg-gray-500 text-white rounded whitespace-nowrap">
+                                  مقروءة
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {createdAt.toLocaleDateString("ar-EG", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* User Information */}
+                        <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                            معلومات المرسل:
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">الاسم</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {message.userName}
+                              </p>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">البريد الإلكتروني</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white break-all">
+                                {message.userEmail}
+                              </p>
+                            </div>
+                            {message.userPhone && (
+                              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">رقم الهاتف</p>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {message.userPhone}
+                                </p>
+                              </div>
+                            )}
+                            {message.userId && (
+                              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">User ID</p>
+                                <p className="text-xs font-mono text-gray-900 dark:text-white break-all">
+                                  {message.userId}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Message Content */}
+                        <div className="mb-4">
+                          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            محتوى الرسالة:
+                          </h4>
+                          <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                              {message.message}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            onClick={async () => {
+                              if (!db) return;
+                              try {
+                                const messageRef = doc(db, "messages", message.id);
+                                await updateDoc(messageRef, { read: !message.read });
+                                setMessage({ type: "success", text: message.read ? "تم تحديد الرسالة كغير مقروءة" : "تم تحديد الرسالة كمقروءة" });
+                                loadData();
+                              } catch (error) {
+                                console.error("Error updating message:", error);
+                                setMessage({ type: "error", text: "حدث خطأ أثناء تحديث الرسالة" });
+                              }
+                            }}
+                            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex-1 ${
+                              message.read
+                                ? "bg-gray-500 text-white hover:bg-gray-600"
+                                : "bg-orange-500 text-white hover:bg-orange-600"
+                            }`}
+                          >
+                            <Check className="w-4 h-4" strokeWidth={2.5} />
+                            <span>{message.read ? "تحديد كغير مقروءة" : "تمت القراءة"}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                show: true,
+                                title: "تأكيد الحذف",
+                                message: "هل أنت متأكد من حذف هذه الرسالة؟",
+                                confirmText: "حذف",
+                                cancelText: "إلغاء",
+                                onConfirm: async () => {
+                                  setConfirmModal({ ...confirmModal, show: false });
+                                  if (!db) return;
+                                  try {
+                                    const messageRef = doc(db, "messages", message.id);
+                                    await deleteDoc(messageRef);
+                                    setMessage({ type: "success", text: "تم حذف الرسالة بنجاح" });
+                                    loadData();
+                                  } catch (error: any) {
+                                    console.error("Error deleting message:", error);
+                                    setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الرسالة" });
+                                  }
+                                },
+                              });
+                            }}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg flex-1"
+                          >
+                            <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+                            <span>حذف</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                  });
+                })()}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmModal.show && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setConfirmModal({ ...confirmModal, show: false })}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 border border-gray-200 dark:border-gray-700"
+            >
+              <div className="flex items-center justify-center mb-4">
+                <div className="bg-red-100 dark:bg-red-900/30 rounded-full p-4">
+                  <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-center mb-3 text-gray-900 dark:text-white">
+                {confirmModal.title}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-6 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmModal({ ...confirmModal, show: false })}
+                  className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
+                >
+                  {confirmModal.cancelText || "إلغاء"}
+                </button>
+                <button
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                  }}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  {confirmModal.confirmText || "تأكيد"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { BookOpen, Clock, Users, Star, Play, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase-client";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { CourseCardSkeleton } from "@/components/Skeleton";
 
 interface Course {
   id: string;
@@ -186,13 +187,31 @@ export default function CoursesPage() {
 
       {loading ? (
         <motion.div
-          className="text-center py-12"
+          className="space-y-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
         >
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-DEFAULT"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">جاري تحميل الدورات...</p>
+          {/* Categories Skeleton */}
+          {categoryList.length > 1 && (
+            <div className="flex flex-wrap justify-center gap-3 mb-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+              ))}
+            </div>
+          )}
+          
+          {/* Courses Grid Skeleton */}
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <CourseCardSkeleton key={i} />
+            ))}
+          </motion.div>
         </motion.div>
       ) : filteredCourses.length === 0 ? (
         <motion.div

@@ -6,6 +6,7 @@ import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Pl
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase-client";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { TestCardSkeleton } from "@/components/Skeleton";
 
 // WhatsApp Icon Component
 const WhatsAppIcon = () => (
@@ -526,9 +527,15 @@ export default function TestsPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto container-padding py-16">
-        <div className="text-center">
-          <div className="inline-block w-8 h-8 border-4 border-primary-DEFAULT border-t-transparent rounded-full animate-spin"></div>
+      <div className="container mx-auto container-padding page-padding">
+        <div className="text-center mb-12">
+          <div className="h-12 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg mx-auto mb-4 animate-pulse"></div>
+          <div className="h-6 w-96 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <TestCardSkeleton key={i} />
+          ))}
         </div>
       </div>
     );
@@ -678,11 +685,11 @@ export default function TestsPage() {
                     setShowResults(false);
                   } else {
                     // إذا لم يكن المستخدم مشترك، نبدأ الاختبار (لكن لن يعمل بدون questionsData)
-                    setSelectedTest(test.id);
-                    setTestStarted(true);
-                    setCurrentQuestion(0);
-                    setAnswers({});
-                    setShowResults(false);
+                  setSelectedTest(test.id);
+                  setTestStarted(true);
+                  setCurrentQuestion(0);
+                  setAnswers({});
+                  setShowResults(false);
                   }
                 }}
                 className="w-full btn-primary py-3 flex items-center justify-center gap-2 group/btn"
@@ -732,7 +739,7 @@ export default function TestsPage() {
                   <div className="space-y-3 mb-6">
                     {/* WhatsApp Button */}
                     <a
-                      href="https://wa.me/201146525436"
+                      href="https://wa.me/2001146525436"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"
@@ -800,7 +807,7 @@ export default function TestsPage() {
                   <div className="space-y-3 mb-6">
                     {/* WhatsApp Button */}
                     <a
-                      href="https://wa.me/201146525436"
+                      href="https://wa.me/2001146525436"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3.5 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"

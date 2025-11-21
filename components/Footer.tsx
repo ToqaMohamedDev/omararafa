@@ -80,7 +80,7 @@ export default function Footer() {
     },
     {
       name: "واتساب",
-      url: "https://wa.me/201146525436",
+      url: "https://wa.me/2001146525436",
       icon: WhatsAppIcon,
       color: "hover:text-green-500",
     },

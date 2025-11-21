@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { Moon, Sun, Menu, X, User, Settings } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/lib/firebase-client";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -15,6 +17,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const { user, isAuthenticated } = useSession();
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -28,15 +31,36 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // التحقق من admin من roles collection
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!isAuthenticated || !user?.uid || !db) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const roleRef = doc(db, "roles", user.uid);
+        const roleDoc = await getDoc(roleRef);
+        setIsAdmin(roleDoc.exists());
+      } catch (error) {
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
+  }, [user, isAuthenticated, db]);
+
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
   const navLinks = [
     { href: "/", label: "الرئيسية" },
-    { href: "/tests", label: "الاختبارات" },
-    { href: "/courses", label: "الدورات" },
     { href: "/videos", label: "الفيديوهات" },
+    { href: "/courses", label: "الكورسات" },
+    { href: "/tests", label: "الاختبارات" },
     { href: "/contact", label: "التواصل" },
     { href: "/about", label: "عن الموقع" },
   ];
@@ -119,7 +143,7 @@ export default function Navbar() {
             {/* Auth Links - Inside Menu */}
             {isAuthenticated ? (
               <>
-                {user?.email === "dzggghjg@gmail.com" && (
+                {isAdmin && (
                   <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -149,7 +173,7 @@ export default function Navbar() {
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (navLinks.length + (user?.email === "dzggghjg@gmail.com" ? 1 : 0)) * 0.05 }}
+                  transition={{ delay: (navLinks.length + (isAdmin ? 1 : 0)) * 0.05 }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -386,7 +410,7 @@ export default function Navbar() {
                 })}
                 {isAuthenticated ? (
                   <>
-                    {user?.email === "dzggghjg@gmail.com" && (
+                    {isAdmin && (
                       <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json({ courses: [] });
+      return NextResponse.json({ courses: [] });
   } catch (error: any) {
     console.error("Get courses error:", error);
     return NextResponse.json(
@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json(
+      return NextResponse.json(
       { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to add courses." },
-      { status: 503 }
-    );
+        { status: 503 }
+      );
   } catch (error: any) {
     console.error("Add course error:", error);
     return NextResponse.json(

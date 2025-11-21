@@ -6,10 +6,10 @@ export async function GET(
 ) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json(
+      return NextResponse.json(
       { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to get user data." },
       { status: 503 }
-    );
+      );
   } catch (error: any) {
     console.error("Get user error:", error);
     return NextResponse.json(
@@ -25,10 +25,10 @@ export async function PUT(
 ) {
   try {
     // Firebase Admin SDK تم إزالته - استخدم Firebase Client SDK في العميل
-    return NextResponse.json(
+        return NextResponse.json(
       { error: "This endpoint requires Firebase Client SDK. Please use Firebase Client SDK to update user data.", fallback: true },
-      { status: 503 }
-    );
+        { status: 503 }
+      );
   } catch (error: any) {
     console.error("Update user error:", error);
     return NextResponse.json(

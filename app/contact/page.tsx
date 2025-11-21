@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mail, Phone, MapPin, Clock, Send, CheckCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSession } from "@/hooks/useSession";
+import { db } from "@/lib/firebase-client";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export default function ContactPage() {
+  const { user, isAuthenticated } = useSession();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -14,25 +18,43 @@ export default function ContactPage() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // تعبئة البيانات من المستخدم إذا كان مسجل دخول
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || prev.phone,
+      }));
+    }
+  }, [user, isAuthenticated]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError("");
     
+    if (!db) {
+      setError("Firebase غير مهيأ. يرجى إعادة تحميل الصفحة.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+      // حفظ الرسالة في Firestore
+      await addDoc(collection(db, "messages"), {
+        userId: user?.uid || null,
+        userName: formData.name,
+        userEmail: formData.email,
+        userPhone: formData.phone || "",
+        subject: formData.subject,
+        message: formData.message,
+        createdAt: serverTimestamp(),
+        read: false,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "حدث خطأ أثناء إرسال الرسالة");
-      }
 
       setSubmitted(true);
       setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
@@ -42,7 +64,7 @@ export default function ContactPage() {
       }, 5000);
     } catch (error: any) {
       console.error("Error submitting contact form:", error);
-      // يمكن إضافة رسالة خطأ هنا إذا أردت
+      setError(error.message || "حدث خطأ أثناء إرسال الرسالة");
     } finally {
       setIsSubmitting(false);
     }
@@ -347,6 +369,17 @@ export default function ContactPage() {
               </motion.button>
 
               <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                    className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 text-red-700 dark:text-red-300 px-4 py-4 rounded-lg"
+                  >
+                    <p className="font-semibold">{error}</p>
+                  </motion.div>
+                )}
                 {submitted && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8, y: 20 }}

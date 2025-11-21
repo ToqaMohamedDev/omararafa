@@ -2,8 +2,11 @@
 
 import { useSession } from "@/hooks/useSession";
 import { useRouter } from "next/navigation";
-import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar, Copy, Check } from "lucide-react";
+import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar, Copy, Check, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
+import { db } from "@/lib/firebase-client";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { ProfileSkeleton, MessageCardSkeleton } from "@/components/Skeleton";
 
 export default function ProfilePage() {
   const { user, isAuthenticated, loading, logout, updateUser } = useSession();
@@ -17,6 +20,14 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    subject: string;
+    message: string;
+    createdAt: any;
+    read: boolean;
+  }>>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -29,6 +40,106 @@ export default function ProfilePage() {
     }
   }, [user]);
 
+  // جلب الرسائل المرسلة من المستخدم
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!user || !db || !isAuthenticated) return;
+      
+      setLoadingMessages(true);
+      try {
+        // جلب جميع الرسائل (Security Rules ستسمح فقط بالرسائل الخاصة بالمستخدم)
+        const messagesQuery = query(
+          collection(db, "messages"),
+          orderBy("createdAt", "desc")
+        );
+        const messagesSnapshot = await getDocs(messagesQuery);
+        
+        // فلترة الرسائل في الكود بناءً على userId أو userEmail
+        const allMessages = messagesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Array<{
+          id: string;
+          userId: string | null;
+          userEmail: string;
+          subject: string;
+          message: string;
+          createdAt: any;
+          read: boolean;
+        }>;
+
+        // فلترة الرسائل التي تنتمي للمستخدم
+        const userMessages = allMessages.filter(msg => {
+          // إذا كان userId موجود ويساوي user.uid
+          if (msg.userId && user.uid && msg.userId === user.uid) {
+            return true;
+          }
+          // إذا كان userEmail موجود ويساوي user.email
+          if (msg.userEmail && user.email && msg.userEmail.toLowerCase() === user.email.toLowerCase()) {
+            return true;
+          }
+          return false;
+        });
+
+        // ترتيب الرسائل حسب التاريخ
+        userMessages.sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        setMessages(userMessages);
+        console.log("Loaded messages:", userMessages.length, "for user:", user.email);
+      } catch (error: any) {
+        console.error("Error loading messages:", error);
+        // في حالة الخطأ (مثل عدم وجود index)، جرب بدون orderBy
+        try {
+          const messagesQuery = query(collection(db, "messages"));
+          const messagesSnapshot = await getDocs(messagesQuery);
+          const allMessages = messagesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Array<{
+            id: string;
+            userId: string | null;
+            userEmail: string;
+            subject: string;
+            message: string;
+            createdAt: any;
+            read: boolean;
+          }>;
+
+          const userMessages = allMessages.filter(msg => {
+            if (msg.userId && user.uid && msg.userId === user.uid) {
+              return true;
+            }
+            if (msg.userEmail && user.email && msg.userEmail.toLowerCase() === user.email.toLowerCase()) {
+              return true;
+            }
+            return false;
+          });
+
+          userMessages.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+
+          setMessages(userMessages);
+          console.log("Loaded messages (fallback):", userMessages.length);
+        } catch (error2) {
+          console.error("Error loading messages (fallback):", error2);
+        }
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    if (user && isAuthenticated) {
+      loadMessages();
+    }
+  }, [user, isAuthenticated, db]);
+
   useEffect(() => {
     // انتظر حتى يتم تحميل حالة المصادقة قبل التحقق
     if (!loading && !isAuthenticated) {
@@ -39,8 +150,8 @@ export default function ProfilePage() {
   // إظهار loading أثناء التحقق من المصادقة
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-DEFAULT"></div>
+      <div className="container mx-auto container-padding page-padding">
+        <ProfileSkeleton />
       </div>
     );
   }
@@ -269,41 +380,77 @@ export default function ProfilePage() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-soft p-6">
-          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-            الاختبارات الأخيرة
+          <div className="flex items-center gap-3 mb-4">
+            <MessageSquare className="w-6 h-6 text-primary-DEFAULT" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              الشكاوي والرسائل المرسلة
           </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  اختبار النحو - الفاعل والمفعول به
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  تم في 15 يناير 2024
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-primary-DEFAULT">90%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  ممتاز
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  اختبار النصوص - التحليل
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  تم في 10 يناير 2024
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-primary-DEFAULT">75%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">جيد</p>
-              </div>
-            </div>
           </div>
+          {loadingMessages ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <MessageCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600 dark:text-gray-400">لا توجد رسائل مرسلة</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((msg) => {
+                const date = msg.createdAt?.toDate ? msg.createdAt.toDate() : new Date(msg.createdAt || new Date());
+                return (
+                  <div
+                    key={msg.id}
+                    className={`p-5 rounded-lg border-2 transition-all duration-200 ${
+                      msg.read
+                        ? "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+                        : "bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-700"
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-600">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h4 className="font-bold text-lg text-gray-900 dark:text-white">
+                            {msg.subject}
+                          </h4>
+                          {!msg.read && (
+                            <span className="px-2 py-1 text-xs font-semibold bg-orange-500 text-white rounded whitespace-nowrap inline-block">
+                              جديدة
+                            </span>
+                          )}
+                          {msg.read && (
+                            <span className="px-2 py-1 text-xs font-semibold bg-gray-500 text-white rounded whitespace-nowrap inline-block">
+                              مقروءة
+                            </span>
+                          )}
+              </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {date.toLocaleDateString("ar-EG", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                </p>
+              </div>
+            </div>
+
+                    {/* Message Content */}
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                        {msg.message}
+                </p>
+              </div>
+              </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

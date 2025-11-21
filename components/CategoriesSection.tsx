@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase-client";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { CategoryCardSkeleton } from "./Skeleton";
 
 export default function CategoriesSection() {
   const [categories, setCategories] = useState<Array<{
@@ -188,6 +189,18 @@ export default function CategoriesSection() {
           </p>
         </motion.div>
 
+        {loading ? (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {[1, 2, 3, 4, 5].map((i) => (
+              <CategoryCardSkeleton key={i} />
+            ))}
+          </motion.div>
+        ) : (
         <motion.div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
           variants={containerVariants}
@@ -227,6 +240,7 @@ export default function CategoriesSection() {
             </motion.div>
           ))}
         </motion.div>
+        )}
       </div>
     </section>
   );
