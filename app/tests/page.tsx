@@ -590,7 +590,14 @@ export default function TestsPage() {
           initial="hidden"
           animate="visible"
         >
-          {tests.map((test, index) => (
+          {tests.filter((test) => {
+            // فلترة الاختبارات بناءً على المرحلة التعليمية (إذا كان المستخدم مسجل دخول)
+            if (isAuthenticated && user?.educationalLevelId) {
+              return test.level === user.educationalLevelId;
+            }
+            // إذا لم يكن المستخدم مسجل دخول، نعرض جميع الاختبارات
+            return true;
+          }).map((test, index) => (
             <motion.div
               key={test.id}
               variants={itemVariants}

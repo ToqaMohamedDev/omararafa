@@ -150,10 +150,19 @@ export default function CoursesPage() {
   // استخدام الدورات من Firebase فقط (لا بيانات افتراضية)
   const displayCourses = courses;
 
-  const filteredCourses =
-    selectedCategory === "all"
-      ? displayCourses
-      : displayCourses.filter((course) => course.category === selectedCategory);
+  // فلترة الكورسات بناءً على التصنيف والمرحلة التعليمية
+  const filteredCourses = displayCourses.filter((course) => {
+    // فلترة حسب التصنيف
+    const matchesCategory = selectedCategory === "all" || course.category === selectedCategory;
+    
+    // فلترة حسب المرحلة التعليمية (إذا كان المستخدم مسجل دخول)
+    let matchesLevel = true;
+    if (isAuthenticated && user?.educationalLevelId) {
+      matchesLevel = course.level === user.educationalLevelId;
+    }
+    
+    return matchesCategory && matchesLevel;
+  });
 
   const containerVariants = {
     hidden: { opacity: 0 },

@@ -13,6 +13,8 @@ interface User {
   photoURL?: string;
   phone?: string;
   birthDate?: string;
+  educationalLevelId?: string;
+  educationalLevel?: string;
 }
 
 interface SessionContextType {
@@ -45,6 +47,8 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
             photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
             phone: userData.phone || "",
             birthDate: userData.birthDate || "",
+            educationalLevelId: userData.educationalLevelId || "",
+            educationalLevel: userData.educationalLevel || "",
           };
         }
       } catch (firestoreError) {
@@ -60,6 +64,8 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
       photoURL: firebaseUser.photoURL || undefined,
       phone: "",
       birthDate: "",
+      educationalLevelId: "",
+      educationalLevel: "",
     };
   } catch (error) {
     console.error("Error verifying user:", error);
@@ -71,6 +77,8 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
       photoURL: firebaseUser.photoURL || undefined,
       phone: "",
       birthDate: "",
+      educationalLevelId: "",
+      educationalLevel: "",
     };
   }
 };
@@ -90,8 +98,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
-        // التحقق من وجود phone و birthDate في localStorage أيضاً
-        if (isMounted && parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
+        // التحقق من وجود phone و birthDate و educationalLevel في localStorage أيضاً
+        if (isMounted && parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate && (parsedUser.educationalLevelId || parsedUser.educationalLevel)) {
           setUser(parsedUser);
           // لا نوقف loading هنا - ننتظر Firebase
         } else if (isMounted && parsedUser && parsedUser.email) {
@@ -112,14 +120,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (savedUser) {
           try {
             const parsedUser = JSON.parse(savedUser);
-            // التحقق من وجود phone و birthDate
-            if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
-              setUser(parsedUser);
-            } else {
-              // إذا كانت البيانات غير مكتملة، احذف من localStorage
-              localStorage.removeItem("user");
-              setUser(null);
-            }
+              // التحقق من وجود phone و birthDate و educationalLevel
+              if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate && (parsedUser.educationalLevelId || parsedUser.educationalLevel)) {
+                setUser(parsedUser);
+              } else {
+                // إذا كانت البيانات غير مكتملة، احذف من localStorage
+                localStorage.removeItem("user");
+                setUser(null);
+              }
           } catch (e) {
             setUser(null);
             localStorage.removeItem("user");
@@ -144,8 +152,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           try {
             const userData = await verifyUser(firebaseUser);
             if (userData && isMounted) {
-              // التحقق من وجود phone و birthDate
-              if (!userData.phone || !userData.birthDate) {
+              // التحقق من وجود phone و birthDate و educationalLevel
+              if (!userData.phone || !userData.birthDate || (!userData.educationalLevelId && !userData.educationalLevel)) {
                 // إذا لم تكن البيانات موجودة، تحقق من الصفحة الحالية
                 if (typeof window !== "undefined") {
                   // استخدام عدة طرق للتحقق من الصفحة الحالية
@@ -161,6 +169,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                       path: currentPath,
                       hasPhone: !!userData.phone,
                       hasBirthDate: !!userData.birthDate,
+                      hasEducationalLevelId: !!userData.educationalLevelId,
+                      hasEducationalLevel: !!userData.educationalLevel,
                       firebaseUser: firebaseUser?.uid,
                       authCurrentUser: auth?.currentUser?.uid
                     });
@@ -177,7 +187,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                   console.log("User data incomplete - logging out", {
                     path: currentPath,
                     hasPhone: !!userData.phone,
-                    hasBirthDate: !!userData.birthDate
+                    hasBirthDate: !!userData.birthDate,
+                    hasEducationalLevelId: !!userData.educationalLevelId,
+                    hasEducationalLevel: !!userData.educationalLevel
                   });
                   if (auth) {
                     await firebaseSignOut(auth);
@@ -210,6 +222,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                       photoURL: userData.photoURL || "",
                       phone: userData.phone || "",
                       birthDate: userData.birthDate || "",
+                      educationalLevelId: userData.educationalLevelId || "",
+                      educationalLevel: userData.educationalLevel || "",
                       createdAt: serverTimestamp(),
                       updatedAt: serverTimestamp(),
                     });
@@ -222,6 +236,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                       photoURL: userData.photoURL || existingData?.photoURL || "",
                       phone: existingData?.phone || userData.phone || "",
                       birthDate: existingData?.birthDate || userData.birthDate || "",
+                      educationalLevelId: existingData?.educationalLevelId || userData.educationalLevelId || "",
+                      educationalLevel: existingData?.educationalLevel || userData.educationalLevel || "",
                       updatedAt: serverTimestamp(),
                     });
                   }
@@ -278,8 +294,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           if (savedUser) {
             try {
               const parsedUser = JSON.parse(savedUser);
-              // التحقق من وجود phone و birthDate
-              if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
+              // التحقق من وجود phone و birthDate و educationalLevel
+              if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate && (parsedUser.educationalLevelId || parsedUser.educationalLevel)) {
                 setUser(parsedUser);
               } else {
                 setUser(null);
@@ -308,8 +324,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (savedUser) {
           try {
             const parsedUser = JSON.parse(savedUser);
-            // التحقق من وجود phone و birthDate
-            if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate) {
+            // التحقق من وجود phone و birthDate و educationalLevel
+            if (parsedUser && parsedUser.email && parsedUser.phone && parsedUser.birthDate && (parsedUser.educationalLevelId || parsedUser.educationalLevel)) {
               setUser(parsedUser);
             } else {
               setUser(null);
@@ -355,6 +371,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             photoURL: userData.photoURL || "",
             phone: userData.phone || "",
             birthDate: userData.birthDate || "",
+            educationalLevelId: userData.educationalLevelId || "",
+            educationalLevel: userData.educationalLevel || "",
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -366,6 +384,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             photoURL: userData.photoURL || existingData?.photoURL || "",
             phone: (userData.phone && userData.phone.trim() !== "") ? userData.phone.trim() : (existingData?.phone || ""),
             birthDate: (userData.birthDate && userData.birthDate.trim() !== "") ? userData.birthDate.trim() : (existingData?.birthDate || ""),
+            educationalLevelId: (userData.educationalLevelId && userData.educationalLevelId.trim() !== "") ? userData.educationalLevelId.trim() : (existingData?.educationalLevelId || ""),
+            educationalLevel: (userData.educationalLevel && userData.educationalLevel.trim() !== "") ? userData.educationalLevel.trim() : (existingData?.educationalLevel || ""),
             updatedAt: serverTimestamp(),
           });
         }

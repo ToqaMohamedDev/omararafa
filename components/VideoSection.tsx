@@ -198,10 +198,19 @@ export default function VideoSection() {
     categoryName: video.category ? categoryMap.get(video.category) || video.category : "",
   }));
 
-  const filteredVideos =
-    selectedCategory === "all"
-      ? videosWithCategoryNames
-      : videosWithCategoryNames.filter((video) => video.category === selectedCategory);
+  // فلترة الفيديوهات بناءً على التصنيف والمرحلة التعليمية
+  const filteredVideos = videosWithCategoryNames.filter((video) => {
+    // فلترة حسب التصنيف
+    const matchesCategory = selectedCategory === "all" || video.category === selectedCategory;
+    
+    // فلترة حسب المرحلة التعليمية (إذا كان المستخدم مسجل دخول)
+    let matchesLevel = true;
+    if (isAuthenticated && user?.educationalLevelId) {
+      matchesLevel = video.level === user.educationalLevelId;
+    }
+    
+    return matchesCategory && matchesLevel;
+  });
 
   const containerVariants = {
     hidden: { opacity: 0 },

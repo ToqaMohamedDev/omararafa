@@ -50,10 +50,11 @@ if (typeof window !== "undefined") {
     auth.settings.appVerificationDisabledForTesting = false;
     db = getFirestore(app);
     googleProvider = new GoogleAuthProvider();
-    googleProvider.setCustomParameters({
-      prompt: "select_account",
-    });
-    // إضافة scopes إضافية
+    // إزالة setCustomParameters التي قد تسبب مشاكل
+    // googleProvider.setCustomParameters({
+    //   prompt: "select_account",
+    // });
+    // إضافة scopes إضافية (email و profile مضمنان افتراضياً، لكن نضيفهم للتأكيد)
     googleProvider.addScope("email");
     googleProvider.addScope("profile");
   } catch (error) {

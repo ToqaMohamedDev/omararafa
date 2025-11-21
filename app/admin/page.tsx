@@ -101,7 +101,7 @@ export default function AdminPage() {
   const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string }>>([]);
   const [showEducationalLevelForm, setShowEducationalLevelForm] = useState(false);
   const [editingEducationalLevel, setEditingEducationalLevel] = useState<{ id: string; name: string } | null>(null);
-  const [educationalLevelForm, setEducationalLevelForm] = useState({ name: "" });
+  const [educationalLevelForm, setEducationalLevelForm] = useState({ id: "", name: "" });
   
   // Videos
   const [videos, setVideos] = useState<Video[]>([]);
@@ -113,7 +113,7 @@ export default function AdminPage() {
     thumbnailUrl: "",
     description: "",
     category: "",
-    level: "مبتدئ",
+    level: "",
   });
 
   // Tests
@@ -125,7 +125,7 @@ export default function AdminPage() {
     description: "",
     duration: "",
     category: "",
-    level: "مبتدئ",
+    level: "",
     questionsData: [] as Array<{
       id: number;
       question: string;
@@ -145,7 +145,7 @@ export default function AdminPage() {
     videoUrl: "",
     thumbnailUrl: "",
     duration: "",
-    level: "مبتدئ",
+    level: "",
     instructor: "عمر عرفة",
     category: "",
   });
@@ -747,8 +747,16 @@ export default function AdminPage() {
 
     try {
       const levelName = educationalLevelForm.name.trim();
+      const levelId = educationalLevelForm.id.trim();
+      
       if (!levelName) {
         setMessage({ type: "error", text: "اسم المرحلة التعليمية مطلوب" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!levelId) {
+        setMessage({ type: "error", text: "معرف المرحلة التعليمية مطلوب" });
         setSubmitting(false);
         return;
       }
@@ -771,9 +779,20 @@ export default function AdminPage() {
           return;
         }
 
+        // التحقق من ID إذا تم تغييره
+        if (levelId !== editingEducationalLevel.id) {
+          const idExists = await getDoc(doc(db, "educationalLevels", levelId));
+          if (idExists.exists() && idExists.id !== editingEducationalLevel.id) {
+            setMessage({ type: "error", text: "معرف المرحلة التعليمية موجود بالفعل" });
+            setSubmitting(false);
+            return;
+          }
+        }
+
         const levelRef = doc(db, "educationalLevels", editingEducationalLevel.id);
         await updateDoc(levelRef, {
           name: levelName,
+          id: levelId,
           updatedAt: serverTimestamp(),
         });
 
@@ -792,8 +811,17 @@ export default function AdminPage() {
           return;
         }
 
-        await addDoc(collection(db, "educationalLevels"), {
+        // التحقق من ID
+        const idExists = await getDoc(doc(db, "educationalLevels", levelId));
+        if (idExists.exists()) {
+          setMessage({ type: "error", text: "معرف المرحلة التعليمية موجود بالفعل" });
+          setSubmitting(false);
+          return;
+        }
+
+        await setDoc(doc(db, "educationalLevels", levelId), {
           name: levelName,
+          id: levelId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -803,7 +831,7 @@ export default function AdminPage() {
 
         setShowEducationalLevelForm(false);
         setEditingEducationalLevel(null);
-        setEducationalLevelForm({ name: "" });
+        setEducationalLevelForm({ id: "", name: "" });
         loadData();
     } catch (error: any) {
       console.error("Error saving educational level:", error);
@@ -815,7 +843,7 @@ export default function AdminPage() {
 
   const handleEditEducationalLevel = (level: { id: string; name: string }) => {
     setEditingEducationalLevel(level);
-    setEducationalLevelForm({ name: level.name });
+    setEducationalLevelForm({ id: level.id, name: level.name });
     setShowEducationalLevelForm(true);
   };
 
@@ -838,6 +866,12 @@ export default function AdminPage() {
         return;
       }
 
+      if (!videoForm.level) {
+        setMessage({ type: "error", text: "يجب اختيار مرحلة تعليمية للفيديو" });
+        setSubmitting(false);
+        return;
+      }
+
       if (!videoForm.title || !videoForm.description) {
         setMessage({ type: "error", text: "العنوان والوصف مطلوبان" });
         setSubmitting(false);
@@ -853,6 +887,15 @@ export default function AdminPage() {
         return;
       }
 
+      // التحقق من وجود المرحلة التعليمية
+      const levelRef = doc(db, "educationalLevels", videoForm.level);
+      const levelDoc = await getDoc(levelRef);
+      if (!levelDoc.exists()) {
+        setMessage({ type: "error", text: "المرحلة التعليمية المحددة غير موجودة" });
+        setSubmitting(false);
+        return;
+      }
+
       if (editingVideo) {
         // تحديث الفيديو
         const videoRef = doc(db, "videos", editingVideo.id);
@@ -861,7 +904,7 @@ export default function AdminPage() {
           thumbnailUrl: videoForm.thumbnailUrl || "",
           description: videoForm.description,
           category: videoForm.category,
-          level: videoForm.level || "مبتدئ",
+          level: videoForm.level,
           updatedAt: serverTimestamp(),
       });
 
@@ -881,7 +924,7 @@ export default function AdminPage() {
           thumbnailUrl: videoForm.thumbnailUrl || "",
           description: videoForm.description,
           category: videoForm.category,
-          level: videoForm.level || "مبتدئ",
+          level: videoForm.level,
           views: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -906,7 +949,7 @@ export default function AdminPage() {
           thumbnailUrl: "",
           description: "",
           category: "",
-          level: "مبتدئ",
+          level: "",
         });
         loadData();
     } catch (error: any) {
@@ -1008,6 +1051,21 @@ export default function AdminPage() {
         return;
       }
 
+      if (!testForm.level) {
+        setMessage({ type: "error", text: "يجب اختيار مرحلة تعليمية للاختبار" });
+        setSubmitting(false);
+        return;
+      }
+
+      // التحقق من وجود المرحلة التعليمية
+      const levelRef = doc(db, "educationalLevels", testForm.level);
+      const levelDoc = await getDoc(levelRef);
+      if (!levelDoc.exists()) {
+        setMessage({ type: "error", text: "المرحلة التعليمية المحددة غير موجودة" });
+        setSubmitting(false);
+        return;
+      }
+
       const questions = testForm.questionsData.length;
       const duration = testForm.duration || `${questions * 5} دقيقة`;
 
@@ -1018,7 +1076,7 @@ export default function AdminPage() {
           title: testForm.title,
           description: testForm.description,
           category: testForm.category || "",
-          level: testForm.level || "مبتدئ",
+          level: testForm.level,
           duration: duration,
           updatedAt: serverTimestamp(),
         });
@@ -1036,7 +1094,7 @@ export default function AdminPage() {
           title: testForm.title,
           description: testForm.description,
           category: testForm.category || "",
-          level: testForm.level || "مبتدئ",
+          level: testForm.level,
           duration: duration,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -1058,7 +1116,7 @@ export default function AdminPage() {
           description: "",
           duration: "",
           category: "",
-          level: "مبتدئ",
+          level: "",
           questionsData: [],
         });
         loadData();
@@ -1183,6 +1241,12 @@ export default function AdminPage() {
         return;
       }
 
+      if (!courseForm.level) {
+        setMessage({ type: "error", text: "يجب اختيار مرحلة تعليمية للكورس" });
+        setSubmitting(false);
+        return;
+      }
+
       if (!courseForm.title || !courseForm.description) {
         setMessage({ type: "error", text: "العنوان والوصف مطلوبان" });
         setSubmitting(false);
@@ -1198,6 +1262,15 @@ export default function AdminPage() {
         return;
       }
 
+      // التحقق من وجود المرحلة التعليمية
+      const levelRef = doc(db, "educationalLevels", courseForm.level);
+      const levelDoc = await getDoc(levelRef);
+      if (!levelDoc.exists()) {
+        setMessage({ type: "error", text: "المرحلة التعليمية المحددة غير موجودة" });
+        setSubmitting(false);
+        return;
+      }
+
       if (editingCourse) {
         // تحديث الكورس
         const courseRef = doc(db, "courses", editingCourse.id);
@@ -1206,7 +1279,7 @@ export default function AdminPage() {
           description: courseForm.description,
           thumbnailUrl: courseForm.thumbnailUrl || "",
           duration: courseForm.duration || "0 ساعة",
-          level: courseForm.level || "مبتدئ",
+          level: courseForm.level,
           instructor: courseForm.instructor || "عمر عرفة",
           category: courseForm.category,
           updatedAt: serverTimestamp(),
@@ -1228,7 +1301,7 @@ export default function AdminPage() {
           description: courseForm.description,
           thumbnailUrl: courseForm.thumbnailUrl || "",
           duration: courseForm.duration || "0 ساعة",
-          level: courseForm.level || "مبتدئ",
+          level: courseForm.level,
           instructor: courseForm.instructor || "عمر عرفة",
           category: courseForm.category,
           students: 0,
@@ -1257,7 +1330,7 @@ export default function AdminPage() {
           videoUrl: "",
           thumbnailUrl: "",
           duration: "",
-          level: "مبتدئ",
+          level: "",
           instructor: "عمر عرفة",
           category: "",
         });
@@ -1768,7 +1841,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setEditingEducationalLevel(null);
-                  setEducationalLevelForm({ name: "" });
+                  setEducationalLevelForm({ id: "", name: "" });
                   setShowEducationalLevelForm(true);
                 }}
                 className="flex items-center gap-2 btn-primary w-full sm:w-auto"
@@ -1796,7 +1869,7 @@ export default function AdminPage() {
                         type="text"
                         required
                         value={educationalLevelForm.name}
-                        onChange={(e) => setEducationalLevelForm({ name: e.target.value })}
+                        onChange={(e) => setEducationalLevelForm({ ...educationalLevelForm, name: e.target.value })}
                         placeholder="مثال: ابتدائي، إعدادي، ثانوي، جامعي..."
                         className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                       />
@@ -1814,6 +1887,7 @@ export default function AdminPage() {
                         onClick={() => {
                           setShowEducationalLevelForm(false);
                           setEditingEducationalLevel(null);
+                          setEducationalLevelForm({ id: "", name: "" });
                         }}
                         className="px-6 py-2 border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                       >
@@ -1966,16 +2040,26 @@ export default function AdminPage() {
                         )}
                       </div>
                       <div>
-                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المستوى</label>
-                        <select
-                          value={videoForm.level}
-                          onChange={(e) => setVideoForm({ ...videoForm, level: e.target.value })}
-                          className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
-                        >
-                          <option value="مبتدئ">مبتدئ</option>
-                          <option value="متوسط">متوسط</option>
-                          <option value="متقدم">متقدم</option>
-                        </select>
+                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المرحلة التعليمية</label>
+                        {educationalLevels.length === 0 ? (
+                          <div className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                            <p className="text-sm">جاري تحميل المراحل التعليمية...</p>
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            value={videoForm.level}
+                            onChange={(e) => setVideoForm({ ...videoForm, level: e.target.value })}
+                            className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                          >
+                            <option value="">اختر المرحلة التعليمية</option>
+                            {educationalLevels.map((level) => (
+                              <option key={level.id} value={level.id}>
+                                {level.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -2087,7 +2171,7 @@ export default function AdminPage() {
                     description: "",
                     duration: "",
                     category: "",
-                    level: "مبتدئ",
+                    level: "",
                     questionsData: [],
                   });
                   setShowTestForm(true);
@@ -2131,16 +2215,26 @@ export default function AdminPage() {
                         />
                       </div>
                       <div>
-                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المستوى</label>
-                        <select
-                          value={testForm.level}
-                          onChange={(e) => setTestForm({ ...testForm, level: e.target.value })}
-                          className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
-                        >
-                          <option value="مبتدئ">مبتدئ</option>
-                          <option value="متوسط">متوسط</option>
-                          <option value="متقدم">متقدم</option>
-                        </select>
+                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المرحلة التعليمية</label>
+                        {educationalLevels.length === 0 ? (
+                          <div className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                            <p className="text-sm">جاري تحميل المراحل التعليمية...</p>
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            value={testForm.level}
+                            onChange={(e) => setTestForm({ ...testForm, level: e.target.value })}
+                            className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                          >
+                            <option value="">اختر المرحلة التعليمية</option>
+                            {educationalLevels.map((level) => (
+                              <option key={level.id} value={level.id}>
+                                {level.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المدة (اختياري)</label>
@@ -2408,16 +2502,26 @@ export default function AdminPage() {
                         />
                       </div>
                       <div>
-                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المستوى</label>
-                        <select
-                          value={courseForm.level}
-                          onChange={(e) => setCourseForm({ ...courseForm, level: e.target.value })}
-                          className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
-                        >
-                          <option value="مبتدئ">مبتدئ</option>
-                          <option value="متوسط">متوسط</option>
-                          <option value="متقدم">متقدم</option>
-                        </select>
+                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المرحلة التعليمية</label>
+                        {educationalLevels.length === 0 ? (
+                          <div className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                            <p className="text-sm">جاري تحميل المراحل التعليمية...</p>
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            value={courseForm.level}
+                            onChange={(e) => setCourseForm({ ...courseForm, level: e.target.value })}
+                            className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                          >
+                            <option value="">اختر المرحلة التعليمية</option>
+                            {educationalLevels.map((level) => (
+                              <option key={level.id} value={level.id}>
+                                {level.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المدرس</label>
