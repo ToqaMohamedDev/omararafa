@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, LogIn, Eye, EyeOff, Sparkles, ArrowRight, Phone, Calendar, GraduationCap } from "lucide-react";
+import { Mail, Lock, LogIn, Eye, EyeOff, Sparkles, ArrowRight, Phone, Calendar } from "lucide-react";
 import Link from "next/link";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
 import { auth, googleProvider, db } from "@/lib/firebase-client";
@@ -65,12 +65,6 @@ const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missin
     missingFields.push("birthDate");
   }
   
-  // فحص المرحلة التعليمية (التحقق من ID أو name)
-  if ((!userData?.educationalLevelId || typeof userData.educationalLevelId !== 'string' || userData.educationalLevelId.trim() === "") &&
-      (!userData?.educationalLevel || typeof userData.educationalLevel !== 'string' || userData.educationalLevel.trim() === "")) {
-    missingFields.push("educationalLevel");
-  }
-  
   // فحص الصورة (اختياري - لكن نتحقق منها)
   // الصورة ليست إلزامية، لكن نتحقق منها
   
@@ -81,7 +75,6 @@ const checkUserDataCompleteness = (userData: any): { isComplete: boolean; missin
     email: userData?.email || "غير موجود",
     phone: userData?.phone || "غير موجود",
     birthDate: userData?.birthDate || "غير موجود",
-    educationalLevel: userData?.educationalLevel || "غير موجود",
     photoURL: userData?.photoURL || "غير موجود",
     isComplete,
     missingFields
@@ -115,7 +108,7 @@ const checkFirestoreUserData = async (uid: string): Promise<{
         exists: false,
         data: null,
         isComplete: false,
-        missingFields: ["phone", "birthDate", "educationalLevel"],
+        missingFields: ["phone", "birthDate"],
       };
     }
     
@@ -149,8 +142,6 @@ const saveUserDataWithRetry = async (
     photoURL?: string;
     phone: string;
     birthDate: string;
-    educationalLevelId: string;
-    educationalLevel?: string; // name للمرحلة التعليمية (اختياري)
   },
   maxRetries = 3
 ): Promise<void> => {
@@ -213,8 +204,6 @@ const saveUserDataWithRetry = async (
           photoURL: userData.photoURL || existingData.photoURL || "",
           phone: userData.phone.trim(),
           birthDate: userData.birthDate.trim(),
-          educationalLevelId: userData.educationalLevelId.trim(),
-          educationalLevel: userData.educationalLevel || existingData.educationalLevel || "",
           updatedAt: serverTimestamp(),
         });
       } else {
@@ -225,8 +214,6 @@ const saveUserDataWithRetry = async (
           photoURL: userData.photoURL || "",
           phone: userData.phone.trim(),
           birthDate: userData.birthDate.trim(),
-          educationalLevelId: userData.educationalLevelId.trim(),
-          educationalLevel: userData.educationalLevel || "",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -272,8 +259,6 @@ function LoginForm() {
   const [googleUserData, setGoogleUserData] = useState<any>(null);
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [educationalLevelId, setEducationalLevelId] = useState("");
-  const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string }>>([]);
   const { login } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -281,28 +266,9 @@ function LoginForm() {
   useEffect(() => {
     const message = searchParams.get("message");
     if (message === "complete_profile") {
-      setError("يرجى إكمال بياناتك (رقم التليفون وتاريخ الميلاد والمرحلة التعليمية) قبل تسجيل الدخول");
+      setError("يرجى إكمال بياناتك (رقم التليفون وتاريخ الميلاد) قبل تسجيل الدخول");
     }
   }, [searchParams]);
-
-  // جلب المراحل التعليمية من Firestore
-  useEffect(() => {
-    const loadEducationalLevels = async () => {
-      if (!db) return;
-      try {
-        const educationalLevelsQuery = query(collection(db, "educationalLevels"), orderBy("name"));
-        const educationalLevelsSnapshot = await getDocs(educationalLevelsQuery);
-        const levels = educationalLevelsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          name: doc.data().name,
-        }));
-        setEducationalLevels(levels);
-      } catch (error) {
-        console.error("Error fetching educational levels:", error);
-      }
-    };
-    loadEducationalLevels();
-  }, [db]);
 
   // ملء الحقول عند فتح النموذج إذا كانت البيانات موجودة
   useEffect(() => {
@@ -312,9 +278,6 @@ function LoginForm() {
       }
       if (googleUserData.birthDate) {
         setBirthDate(googleUserData.birthDate);
-      }
-      if (googleUserData.educationalLevelId) {
-        setEducationalLevelId(googleUserData.educationalLevelId);
       }
     }
   }, [showGoogleForm, googleUserData]);
@@ -361,7 +324,7 @@ function LoginForm() {
           const userData = firestoreCheck.data;
           
           // التأكد من وجود جميع الحقول المطلوبة
-          if (!userData.name || !userData.email || !userData.phone || !userData.birthDate || (!userData.educationalLevelId && !userData.educationalLevel)) {
+          if (!userData.name || !userData.email || !userData.phone || !userData.birthDate) {
             console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص");
             // اعتبرها بيانات ناقصة وأظهر النموذج
             throw new Error("INCOMPLETE_DATA");
@@ -375,8 +338,6 @@ function LoginForm() {
             photoURL: userData.photoURL || user.photoURL || undefined,
             phone: userData.phone || "",
             birthDate: userData.birthDate || "",
-            educationalLevelId: userData.educationalLevelId || "",
-            educationalLevel: userData.educationalLevel || "",
           });
           
           setIsLoading(false);
@@ -500,14 +461,12 @@ function LoginForm() {
         const userData = firestoreCheck.data;
         
         // التأكد من وجود جميع الحقول المطلوبة
-        if (!userData.name || !userData.email || !userData.phone || !userData.birthDate || (!userData.educationalLevelId && !userData.educationalLevel)) {
+        if (!userData.name || !userData.email || !userData.phone || !userData.birthDate) {
           console.warn("⚠️ بيانات ناقصة رغم اجتياز الفحص:", {
             name: userData.name,
             email: userData.email,
             phone: userData.phone,
-            birthDate: userData.birthDate,
-            educationalLevelId: userData.educationalLevelId,
-            educationalLevel: userData.educationalLevel
+            birthDate: userData.birthDate
           });
           // اعتبرها بيانات ناقصة وأظهر النموذج
           throw new Error("INCOMPLETE_DATA");
@@ -521,8 +480,6 @@ function LoginForm() {
           photoURL: userData.photoURL || firebaseUser.photoURL || "",
           phone: userData.phone || "",
           birthDate: userData.birthDate || "",
-          educationalLevelId: userData.educationalLevelId || "",
-          educationalLevel: userData.educationalLevel || "",
         };
         
         // حفظ/تحديث في Firestore
@@ -541,8 +498,6 @@ function LoginForm() {
           photoURL: finalUserData.photoURL || undefined,
           phone: finalUserData.phone,
           birthDate: finalUserData.birthDate,
-          educationalLevelId: finalUserData.educationalLevelId,
-          educationalLevel: finalUserData.educationalLevel,
         });
         
         setIsLoading(false);
@@ -562,8 +517,6 @@ function LoginForm() {
         photoURL: firestoreCheck.data?.photoURL || firebaseUser.photoURL || undefined,
         phone: firestoreCheck.data?.phone || "",
         birthDate: firestoreCheck.data?.birthDate || "",
-        educationalLevelId: firestoreCheck.data?.educationalLevelId || "",
-        educationalLevel: firestoreCheck.data?.educationalLevel || "",
       };
       
       console.log("📝 بيانات للنموذج (من Google + Firestore):", {
@@ -627,18 +580,6 @@ function LoginForm() {
       return;
     }
 
-    if (!educationalLevelId || educationalLevelId.trim() === "") {
-      setError("يرجى اختيار المرحلة التعليمية");
-      return;
-    }
-
-    // الحصول على name المرحلة التعليمية من القائمة
-    const selectedLevel = educationalLevels.find(level => level.id === educationalLevelId);
-    if (!selectedLevel) {
-      setError("المرحلة التعليمية المختارة غير صحيحة");
-      return;
-    }
-
     setIsLoading(true);
 
     if (!googleUserData || !googleUserData.uid) {
@@ -671,8 +612,6 @@ function LoginForm() {
         photoURL: firebaseUser?.photoURL || googleUserData.photoURL || "",
         phone: phone.trim(),
         birthDate: birthDate.trim(),
-        educationalLevelId: educationalLevelId.trim(),
-        educationalLevel: selectedLevel.name,
       };
 
       console.log("🔄 محاولة حفظ البيانات:", { uid, phone: finalUserData.phone, birthDate: finalUserData.birthDate });
@@ -734,8 +673,6 @@ function LoginForm() {
         photoURL: finalUserData.photoURL || undefined,
         phone: finalUserData.phone,
         birthDate: finalUserData.birthDate,
-        educationalLevelId: finalUserData.educationalLevelId,
-        educationalLevel: finalUserData.educationalLevel,
       });
       
       // إغلاق Modal
@@ -1103,7 +1040,7 @@ function LoginForm() {
                 أكمل بياناتك
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                يرجى إدخال رقم التليفون وتاريخ الميلاد والمرحلة التعليمية لإكمال التسجيل (إجباري)
+                يرجى إدخال رقم التليفون وتاريخ الميلاد لإكمال التسجيل (إجباري)
               </p>
 
               <form onSubmit={handleGoogleFormSubmit} className="space-y-4">
@@ -1136,31 +1073,6 @@ function LoginForm() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4" />
-                    المرحلة التعليمية <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={educationalLevelId}
-                    onChange={(e) => setEducationalLevelId(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-DEFAULT focus:border-primary-DEFAULT bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">اختر المرحلة التعليمية</option>
-                    {educationalLevels.map((level) => (
-                      <option key={level.id} value={level.id}>
-                        {level.name}
-                      </option>
-                    ))}
-                  </select>
-                  {educationalLevels.length === 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      جاري تحميل المراحل التعليمية...
-                    </p>
-                  )}
-                </div>
-
                 {error && (
                   <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
                     {error}
@@ -1169,7 +1081,7 @@ function LoginForm() {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !phone || !birthDate || !educationalLevelId}
+                  disabled={isLoading || !phone || !birthDate}
                   className="w-full btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (

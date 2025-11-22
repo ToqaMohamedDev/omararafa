@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "@/hooks/useSession";
-import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Play, Phone, AlertCircle } from "lucide-react";
+import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Play, Phone, AlertCircle, GraduationCap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase-client";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, orderBy } from "firebase/firestore";
 import { TestCardSkeleton } from "@/components/Skeleton";
 
 // WhatsApp Icon Component
@@ -34,19 +34,22 @@ interface Test {
   description: string;
   duration: string;
   questions: number;
-  category: string;
   level: string;
   questionsData: Question[];
 }
 
 export default function TestsPage() {
   const { user, isAuthenticated, loading: sessionLoading } = useSession();
+  const [selectedEducationalLevel, setSelectedEducationalLevel] = useState<string | null>(null);
   const [selectedTest, setSelectedTest] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<{ [key: number]: number }>({});
   const [showResults, setShowResults] = useState(false);
   const [testStarted, setTestStarted] = useState(false);
   const [tests, setTests] = useState<Test[]>([]);
+  // State محلي للاختبار الحالي مع questionsData (مثل Admin Panel)
+  const [currentTestData, setCurrentTestData] = useState<Test | null>(null);
+  const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string; imageUrl?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [showMessage, setShowMessage] = useState<{ type: "subscription" | "contact" | "login"; show: boolean }>({ type: "subscription", show: false });
@@ -68,25 +71,41 @@ export default function TestsPage() {
           const endsAt = data.endsAt?.toDate ? data.endsAt.toDate() : new Date(data.endsAt);
           const now = new Date();
           const isValid = endsAt > now;
-          console.log("Subscription check:", { 
-            exists: true, 
-            endsAt: endsAt.toISOString(), 
-            now: now.toISOString(), 
-            isValid 
-          });
           setHasSubscription(isValid);
         } else {
-          console.log("Subscription check: Document does not exist");
           setHasSubscription(false);
         }
       } catch (error) {
-        console.error("Error checking subscription:", error);
+        console.error("❌ Error checking subscription:", error);
         setHasSubscription(false);
       }
     };
 
     checkSubscription();
   }, [isAuthenticated, user?.uid]);
+
+  // جلب المراحل التعليمية
+  useEffect(() => {
+    const loadEducationalLevels = async () => {
+      if (!db) {
+        console.warn("⚠️ db غير متاح لجلب المراحل التعليمية");
+        return;
+      }
+      try {
+        const educationalLevelsQuery = query(collection(db, "educationalLevels"), orderBy("createdAt", "asc"));
+        const educationalLevelsSnapshot = await getDocs(educationalLevelsQuery);
+        const levels = educationalLevelsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          name: doc.data().name,
+          imageUrl: doc.data().imageUrl || "",
+        }));
+        setEducationalLevels(levels);
+      } catch (error) {
+        console.error("❌ Error fetching educational levels:", error);
+      }
+    };
+    loadEducationalLevels();
+  }, [db]);
 
   useEffect(() => {
     // محاولة جلب الاختبارات من Firebase
@@ -108,70 +127,116 @@ export default function TestsPage() {
               id: doc.id,
               ...doc.data(),
             })) as Test[];
-          } catch (firestoreError) {
+          } catch (firestoreError: any) {
             console.error("Error fetching tests from Firestore:", firestoreError);
           }
         }
 
-        // جلب questionsData من private/content للمستخدمين المشتركين فقط
-        // إذا لم يكن المستخدم مشترك، نترك questionsData فارغ
-        if (hasSubscription && db && auth?.currentUser && testsData.length > 0) {
-          try {
-            const testsWithQuestions = await Promise.all(
-              testsData.map(async (test) => {
-                if (!db) return { ...test, questionsData: [] };
-                try {
-                  const privateContentRef = doc(db, "tests", test.id, "private", "content");
-                  const privateContentDoc = await getDoc(privateContentRef);
-                  if (privateContentDoc.exists()) {
-                    const data = privateContentDoc.data();
-                    const questionsData = data.questionsData || [];
-                    return {
-                      ...test,
-                      questionsData: questionsData,
-                    };
-                  }
-                } catch (error: any) {
-                  // إذا كان الخطأ permission-denied، هذا طبيعي
-                  if (error.code !== "permission-denied") {
-                    console.error(`Error fetching questions data for ${test.id}:`, error);
-                  }
-                }
-                // إذا لم يتم جلب questionsData، نعيد الاختبار بدون questionsData
-                return {
-                  ...test,
-                  questionsData: [],
-                };
-              })
-            );
-            testsData = testsWithQuestions;
-          } catch (error) {
-            console.error("Error fetching questions data from private subcollections:", error);
-          }
-        } else {
-          // إذا لم يكن المستخدم مشترك، نزيل questionsData من جميع الاختبارات
-          testsData = testsData.map(test => ({
-            ...test,
-            questionsData: [],
-          }));
-        }
+        // لا نجلب private/content هنا - فقط نعرض البيانات العامة (العنوان والوصف)
+        // private/content سيتم جلبه فقط عند الضغط على "بدء الاختبار"
+        testsData = testsData.map(test => ({
+          ...test,
+          questionsData: [], // نترك questionsData فارغ حتى يتم جلبه عند بدء الاختبار
+        }));
+
+        // طباعة بيانات الاختبارات بشكل مفصل
+        console.log("📊 ========== بيانات الاختبارات ==========");
+        console.log("📊 إجمالي عدد الاختبارات:", testsData.length);
+        console.log("📊 الاختبارات:", testsData.map((test, index) => ({
+          رقم: index + 1,
+          المعرف: test.id,
+          العنوان: test.title,
+          الوصف: test.description,
+          المدة: test.duration,
+          المرحلة_التعليمية_ID: test.level,
+          عدد_الأسئلة: test.questions || 0,
+          البيانات_الكاملة: test
+        })));
+        console.log("📊 ========================================");
 
         setTests(testsData);
       } catch (error) {
         console.error("Error fetching tests:", error);
-        setTests([]); // لا بيانات افتراضية
+        setTests([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchTests();
-  }, [hasSubscription]);
+  }, [hasSubscription, db, auth?.currentUser]);
 
-  const currentTest = tests.find((t) => t.id === selectedTest);
-  const currentQ = currentTest?.questionsData && Array.isArray(currentTest.questionsData) && currentTest.questionsData.length > currentQuestion
-    ? currentTest.questionsData[currentQuestion]
-    : undefined;
+  // فلترة الاختبارات بناءً على المرحلة التعليمية المختارة
+  const testsForSelectedLevel = useMemo(() => {
+    if (!selectedEducationalLevel) return [];
+    
+    const filtered = tests.filter((test) => {
+      if (!test.level) {
+        return false;
+      }
+      return test.level === selectedEducationalLevel;
+    });
+
+    // طباعة بيانات الاختبارات المفلترة
+    console.log("🔍 ========== الاختبارات المفلترة ==========");
+    console.log("🔍 المرحلة التعليمية المختارة:", selectedEducationalLevel);
+    console.log("🔍 إجمالي الاختبارات:", tests.length);
+    console.log("🔍 عدد الاختبارات المفلترة:", filtered.length);
+    console.log("🔍 الاختبارات المفلترة:", filtered.map((test, index) => ({
+      رقم: index + 1,
+      المعرف: test.id,
+      العنوان: test.title,
+      الوصف: test.description,
+      المدة: test.duration,
+      المرحلة_التعليمية_ID: test.level,
+      عدد_الأسئلة: test.questions || 0,
+      hasQuestionsData: !!test.questionsData,
+      questionsDataLength: test.questionsData?.length || 0
+    })));
+    console.log("🔍 جميع المراحل في الاختبارات:", [...new Set(tests.map(t => t.level))]);
+    console.log("🔍 ========================================");
+
+    return filtered;
+  }, [selectedEducationalLevel, tests]);
+
+
+  // استخدام currentTestData بدلاً من البحث في tests array (مثل Admin Panel)
+  const currentTest = currentTestData;
+  
+  const currentQ = useMemo(() => {
+    if (currentTest?.questionsData && Array.isArray(currentTest.questionsData) && currentTest.questionsData.length > currentQuestion) {
+      return currentTest.questionsData[currentQuestion];
+    }
+    return undefined;
+  }, [currentTest, currentQuestion]);
+
+  // Debug: التحقق من currentTest و currentQ
+  useEffect(() => {
+    if (testStarted && selectedTest) {
+      console.log("🔍 حالة الاختبار:", {
+        testStarted,
+        selectedTest,
+        currentTest: currentTest ? {
+          id: currentTest.id,
+          title: currentTest.title,
+          questionsDataLength: currentTest.questionsData?.length || 0,
+          questionsData: currentTest.questionsData,
+          hasQuestionsData: !!currentTest.questionsData,
+          isArray: Array.isArray(currentTest.questionsData)
+        } : null,
+        currentQuestion,
+        currentQ: currentQ ? {
+          id: currentQ.id,
+          question: currentQ.question,
+          options: currentQ.options
+        } : null,
+        allTests: tests.map(t => ({
+          id: t.id,
+          questionsDataLength: t.questionsData?.length || 0
+        }))
+      });
+    }
+  }, [testStarted, selectedTest, currentTest, currentQuestion, currentQ, tests]);
 
   const handleAnswer = (answerIndex: number) => {
     setAnswers({ ...answers, [currentQuestion]: answerIndex });
@@ -232,6 +297,7 @@ export default function TestsPage() {
     setAnswers({});
     setShowResults(false);
     setTestStarted(false);
+    setCurrentTestData(null); // إعادة تعيين currentTestData
   };
 
   // إظهار loading أثناء تحميل session
@@ -405,22 +471,22 @@ export default function TestsPage() {
       <div className="container mx-auto container-padding py-8">
         <div className="max-w-4xl mx-auto">
           <motion.div
-            className="card p-6 mb-6"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6 border-2 border-gray-200 dark:border-gray-700"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 السؤال {currentQuestion + 1} من {currentTest.questionsData?.length || 0}
               </span>
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
                 {currentTest.title}
               </span>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <motion.div
-                className="bg-primary-DEFAULT h-2 rounded-full"
+                className="bg-gradient-to-r from-primary-600 to-primary-700 h-2 rounded-full"
                 initial={{ width: 0 }}
                 animate={{
                   width: `${((currentQuestion + 1) / (currentTest.questionsData?.length || 1)) * 100}%`,
@@ -433,7 +499,7 @@ export default function TestsPage() {
           <AnimatePresence mode="wait">
             <motion.div
               key={currentQuestion}
-              className="card p-8 mb-6"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-6 border-2 border-gray-200 dark:border-gray-700"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
@@ -450,8 +516,8 @@ export default function TestsPage() {
                     onClick={() => handleAnswer(index)}
                     className={`w-full text-right p-4 rounded-lg border-2 transition-all ${
                       answers[currentQuestion] === index
-                        ? "border-primary-DEFAULT bg-primary-50 dark:bg-primary-900/20 text-primary-DEFAULT font-semibold"
-                        : "border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        ? "border-primary-600 dark:border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-semibold shadow-md"
+                        : "border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600"
                     }`}
                     whileHover={{ scale: 1.02, x: -5 }}
                     whileTap={{ scale: 0.98 }}
@@ -459,7 +525,7 @@ export default function TestsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <span className="ml-2 font-semibold">
+                    <span className="ml-2 font-semibold text-primary-600 dark:text-primary-400">
                       {String.fromCharCode(65 + index)}.
                     </span>
                     {option}
@@ -507,20 +573,26 @@ export default function TestsPage() {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1,
+        staggerChildren: 0.05,
+        delayChildren: 0,
+        when: "beforeChildren",
       },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 40, scale: 0.9 },
+    hidden: { 
+      opacity: 0, 
+      y: 10,
+      pointerEvents: "none" as const
+    },
     visible: {
       opacity: 1,
       y: 0,
-      scale: 1,
+      pointerEvents: "auto" as const,
       transition: {
-        duration: 0.5,
-        ease: [0.4, 0, 0.2, 1] as const,
+        duration: 0.2,
+        ease: "easeOut" as const,
       },
     },
   };
@@ -565,73 +637,188 @@ export default function TestsPage() {
         </p>
       </motion.div>
 
-      {tests.length === 0 ? (
+      {/* عرض المراحل التعليمية أولاً */}
+      {!selectedEducationalLevel && (
         <motion.div
-          className="text-center py-12"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
+          className="mb-12"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          <motion.div
-            initial={{ rotate: -180, scale: 0 }}
-            animate={{ rotate: 0, scale: 1 }}
-            transition={{ type: "spring", delay: 0.2 }}
-          >
-            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          </motion.div>
-          <p className="text-lg text-gray-600 dark:text-gray-400">
-            لا توجد اختبارات متاحة حالياً
-          </p>
+          <h3 className="text-2xl md:text-3xl font-bold text-center mb-8 text-gray-900 dark:text-white">
+            اختر المرحلة التعليمية
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {educationalLevels.map((level, index) => (
+              <motion.button
+                key={level.id}
+                onClick={() => {
+                  setSelectedEducationalLevel(level.id);
+                }}
+                className="card overflow-hidden group cursor-pointer text-right hover:shadow-xl transition-all duration-300 p-0"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                whileHover={{ y: -8, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {/* الصورة الكبيرة في الأعلى */}
+                <div className="relative w-full aspect-[16/9] overflow-hidden bg-gray-200 dark:bg-gray-700">
+                  {level.imageUrl ? (
+                    <img
+                      src={level.imageUrl}
+                      alt={level.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800">
+                      <GraduationCap className="w-16 h-16 text-primary-600 dark:text-primary-400" />
+                    </div>
+                  )}
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  {/* Arrow Icon Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <ArrowRight className="w-12 h-12 text-white drop-shadow-lg transform rotate-180" />
+                  </div>
+                </div>
+                
+                {/* المحتوى */}
+                <div className="p-6">
+                  <h4 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                    {level.name}
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    اضغط للاطلاع على الاختبارات
+                  </p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
         </motion.div>
-      ) : (
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {tests.filter((test) => {
-            // فلترة الاختبارات بناءً على المرحلة التعليمية (إذا كان المستخدم مسجل دخول)
-            if (isAuthenticated && user?.educationalLevelId) {
-              return test.level === user.educationalLevelId;
-            }
-            // إذا لم يكن المستخدم مسجل دخول، نعرض جميع الاختبارات
-            return true;
-          }).map((test, index) => (
+      )}
+
+      {/* عرض الاختبارات عند اختيار مرحلة */}
+      {selectedEducationalLevel && (
+        <>
+          {/* زر العودة */}
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <button
+              onClick={() => {
+                setSelectedEducationalLevel(null);
+              }}
+              className="flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold transition-colors"
+            >
+              <ArrowRight className="w-5 h-5" />
+              <span>العودة إلى المراحل التعليمية</span>
+            </button>
+          </motion.div>
+        </>
+      )}
+
+      {(() => {
+        // Debug: التحقق من الحالة
+        console.log("🔍 Render check:", {
+          selectedEducationalLevel,
+          testsForSelectedLevelLength: testsForSelectedLevel.length,
+          testsLength: tests.length,
+          loading,
+          testStarted,
+          showResults,
+          testsForSelectedLevel: testsForSelectedLevel.map(t => ({ id: t.id, title: t.title, level: t.level }))
+        });
+
+        // إذا كان الاختبار بدأ أو النتائج معروضة، لا نعرض قائمة الاختبارات
+        // (يتم عرضها في return statements أعلاه في بداية الكومبوننت)
+        
+        if (!selectedEducationalLevel) {
+          return (
+            <motion.div
+              className="text-center py-20"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, type: "spring" }}
+            >
+              <motion.div
+                initial={{ rotate: -180, scale: 0 }}
+                animate={{ rotate: 0, scale: 1 }}
+                transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
+                className="inline-block mb-6"
+              >
+                <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6">
+                  <GraduationCap className="w-16 h-16 text-gray-400" />
+                </div>
+              </motion.div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                اختر المرحلة التعليمية
+              </h3>
+              <p className="text-lg text-gray-600 dark:text-gray-400">
+                يرجى اختيار مرحلة تعليمية للاطلاع على الاختبارات
+              </p>
+            </motion.div>
+          );
+        }
+
+        if (testsForSelectedLevel.length === 0) {
+          return (
+            <motion.div
+              className="text-center py-12"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <motion.div
+                initial={{ rotate: -180, scale: 0 }}
+                animate={{ rotate: 0, scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+              >
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              </motion.div>
+              <p className="text-lg text-gray-600 dark:text-gray-400">
+                لا توجد اختبارات متاحة لهذه المرحلة التعليمية حالياً
+              </p>
+            </motion.div>
+          );
+        }
+
+        return (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+          >
+            {testsForSelectedLevel.map((test, index) => {
+              console.log("🎨 Rendering test card:", { index, testId: test.id, testTitle: test.title });
+              return (
             <motion.div
               key={test.id}
-              variants={itemVariants}
-              className="card p-6 md:p-8 group overflow-hidden"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl p-6 md:p-8 group overflow-hidden border-2 border-gray-200 dark:border-gray-700 transition-all duration-300"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: index * 0.05 }}
               whileHover={{ y: -10, scale: 1.03 }}
-              transition={{ type: "spring", stiffness: 300 }}
             >
-              <div className="mb-4">
-                <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold shadow-sm">
-                  {test.category}
-                </span>
-              </div>
-
               <div className="flex items-start justify-between gap-3 mb-3">
                 <h2 className="text-xl md:text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2">
                   {test.title}
                 </h2>
-                <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
-                  {test.level}
-                </span>
+                {/* Level badge removed - not needed for display */}
               </div>
               <p className="text-gray-600 dark:text-gray-400 mb-5 text-sm md:text-base line-clamp-2 leading-relaxed">
                 {test.description}
               </p>
 
-              <div className="flex items-center gap-4 mb-6 text-xs md:text-sm text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" />
+              <div className="flex items-center gap-4 mb-6 text-xs md:text-sm">
+                <span className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-lg font-medium">
+                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   {test.duration}
                 </span>
                 <span className="text-gray-300 dark:text-gray-600">•</span>
-                <span className="flex items-center gap-1.5">
-                  <FileText className="w-4 h-4" />
-                  {test.questions} سؤال
+                <span className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-lg font-medium">
+                  <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  {test.questionsData?.length || test.questions || 0} سؤال
                 </span>
               </div>
 
@@ -655,17 +842,35 @@ export default function TestsPage() {
                     
                     // إذا لم يكن questionsData موجوداً، نحاول جلبه من private/content
                     if (!testQuestionsData || testQuestionsData.length === 0) {
+                      console.log("📥 جلب الأسئلة من private/content...");
+                      console.log("📥 معرف الاختبار:", test.id);
                       try {
                         const privateContentRef = doc(db, "tests", test.id, "private", "content");
                         const privateContentDoc = await getDoc(privateContentRef);
                         if (privateContentDoc.exists()) {
                           const data = privateContentDoc.data();
                           testQuestionsData = data.questionsData || [];
+                          console.log("✅ تم جلب الأسئلة بنجاح:", {
+                            عدد_الأسئلة: testQuestionsData.length,
+                            الأسئلة: testQuestionsData.map((q, index) => ({
+                              رقم: index + 1,
+                              السؤال: q.question,
+                              عدد_الخيارات: q.options?.length || 0
+                            }))
+                          });
+                        } else {
+                          console.warn("⚠️ private/content غير موجود للاختبار:", test.id);
                         }
                       } catch (error: any) {
-                        console.error("Error fetching questions data:", error);
+                        console.error("❌ خطأ في جلب الأسئلة:", error);
+                        console.error("❌ تفاصيل الخطأ:", {
+                          code: error.code,
+                          message: error.message,
+                          testId: test.id
+                        });
                         // إذا كان الخطأ permission-denied، هذا يعني أن Security Rules تمنع الوصول
                         if (error.code === "permission-denied") {
+                          console.error("🚫 Security Rules تمنع الوصول إلى private/content");
                           setShowMessage({ type: "contact", show: true });
                           return;
                         }
@@ -678,15 +883,40 @@ export default function TestsPage() {
                       return;
                     }
                     
-                    // تحديث الاختبار بـ questionsData قبل البدء
+                    // تحديث الاختبار بـ questionsData (مثل Admin Panel)
                     const updatedTest = {
                       ...test,
                       questionsData: testQuestionsData,
+                      questions: testQuestionsData.length,
                     };
+                    
+                    // طباعة بيانات الاختبار عند البدء
+                    console.log("🚀 ========== بدء الاختبار ==========");
+                    console.log("🚀 معرف الاختبار:", test.id);
+                    console.log("🚀 عنوان الاختبار:", test.title);
+                    console.log("🚀 الوصف:", test.description);
+                    console.log("🚀 المدة:", test.duration);
+                    console.log("🚀 المرحلة التعليمية ID:", test.level);
+                    console.log("🚀 عدد الأسئلة:", testQuestionsData.length);
+                    console.log("🚀 الأسئلة:", testQuestionsData.map((q, index) => ({
+                      رقم: index + 1,
+                      السؤال: q.question,
+                      الخيارات: q.options,
+                      الإجابة_الصحيحة: q.correctAnswer,
+                      الشرح: q.explanation || "لا يوجد شرح"
+                    })));
+                    console.log("🚀 الاختبار المحدث:", updatedTest);
+                    console.log("🚀 ====================================");
+                    
+                    // استخدام state محلي للاختبار الحالي (مثل Admin Panel)
+                    setCurrentTestData(updatedTest);
+                    
+                    // تحديث tests state أيضاً (للتوافق)
                     const updatedTests = tests.map(t => t.id === test.id ? updatedTest : t);
                     setTests(updatedTests);
                     
-                    // البدء في الاختبار بعد تحديث state
+                    // البدء في الاختبار
+                    
                     setSelectedTest(test.id);
                     setTestStarted(true);
                     setCurrentQuestion(0);
@@ -701,7 +931,7 @@ export default function TestsPage() {
                   setShowResults(false);
                   }
                 }}
-                className="w-full btn-primary py-3 flex items-center justify-center gap-2 group/btn"
+                className="w-full bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 hover:from-primary-700 hover:via-primary-800 hover:to-primary-900 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 group/btn shadow-lg hover:shadow-xl transition-all duration-300"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -709,9 +939,11 @@ export default function TestsPage() {
                 بدء الاختبار
               </motion.button>
             </motion.div>
-          ))}
-        </motion.div>
-      )}
+              );
+            })}
+          </motion.div>
+        );
+      })()}
 
       {/* Message Modal */}
       <AnimatePresence>

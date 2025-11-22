@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Play, Clock, Eye, BookOpen, X, Sparkles, TrendingUp, Phone, AlertCircle, CheckCircle, MessageCircle } from "lucide-react";
+import { Play, Clock, Eye, BookOpen, X, Sparkles, TrendingUp, Phone, AlertCircle, CheckCircle, MessageCircle, GraduationCap, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { VideoCardSkeleton, CategoryCardSkeleton } from "./Skeleton";
 import VideoPlayer from "./VideoPlayer";
@@ -39,9 +39,11 @@ interface Video {
 
 export default function VideoSection() {
   const { user, isAuthenticated } = useSession();
+  const [selectedEducationalLevel, setSelectedEducationalLevel] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [videos, setVideos] = useState<Video[]>([]);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string; imageUrl?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -84,6 +86,26 @@ export default function VideoSection() {
 
     checkSubscription();
   }, [isAuthenticated, user?.uid]);
+
+  // جلب المراحل التعليمية
+  useEffect(() => {
+    const loadEducationalLevels = async () => {
+      if (!db) return;
+      try {
+        const educationalLevelsQuery = query(collection(db, "educationalLevels"), orderBy("createdAt", "asc"));
+        const educationalLevelsSnapshot = await getDocs(educationalLevelsQuery);
+        const levels = educationalLevelsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          name: doc.data().name,
+          imageUrl: doc.data().imageUrl || "",
+        }));
+        setEducationalLevels(levels);
+      } catch (error) {
+        console.error("Error fetching educational levels:", error);
+      }
+    };
+    loadEducationalLevels();
+  }, [db]);
 
   // جلب التصنيفات والفيديوهات من Firebase
   useEffect(() => {
@@ -185,32 +207,59 @@ export default function VideoSection() {
     fetchData();
   }, [hasSubscription]);
 
-  const categoryList = [
-    { id: "all", name: "الكل" },
-    ...categories,
-  ];
-
-  const displayVideos = videos;
   const categoryMap = new Map(categories.map((cat) => [cat.id, cat.name]));
 
-  const videosWithCategoryNames = displayVideos.map((video) => ({
+  const videosWithCategoryNames = videos.map((video) => ({
     ...video,
     categoryName: video.category ? categoryMap.get(video.category) || video.category : "",
   }));
 
-  // فلترة الفيديوهات بناءً على التصنيف والمرحلة التعليمية
-  const filteredVideos = videosWithCategoryNames.filter((video) => {
-    // فلترة حسب التصنيف
-    const matchesCategory = selectedCategory === "all" || video.category === selectedCategory;
-    
-    // فلترة حسب المرحلة التعليمية (إذا كان المستخدم مسجل دخول)
-    let matchesLevel = true;
-    if (isAuthenticated && user?.educationalLevelId) {
-      matchesLevel = video.level === user.educationalLevelId;
-    }
-    
-    return matchesCategory && matchesLevel;
-  });
+  // فلترة الفيديوهات بناءً على المرحلة التعليمية المختارة
+  const videosForSelectedLevel = selectedEducationalLevel
+    ? videosWithCategoryNames.filter((video) => {
+        return video.level === selectedEducationalLevel;
+      })
+    : [];
+
+  // الحصول على التصنيفات الخاصة بالمرحلة المختارة
+  const categoriesForSelectedLevel = selectedEducationalLevel
+    ? Array.from(
+        new Set(
+          videosForSelectedLevel
+            .map((video) => video.category)
+            .filter((cat) => cat && cat.trim() !== "")
+        )
+      )
+        .map((categoryId) => {
+          const category = categories.find((cat) => cat.id === categoryId);
+          return category ? { id: category.id, name: category.name } : null;
+        })
+        .filter((cat) => cat !== null) as Array<{ id: string; name: string }>
+    : [];
+
+  // فلترة الفيديوهات بناءً على التصنيف المختار والمرحلة التعليمية
+  const filteredVideos = selectedEducationalLevel
+    ? videosForSelectedLevel.filter((video) => {
+        const matchesCategory = selectedCategory === "all" || video.category === selectedCategory;
+        return matchesCategory;
+      })
+    : [];
+
+  // تجميع الفيديوهات حسب التصنيف
+  const videosByCategory = selectedEducationalLevel
+    ? categoriesForSelectedLevel.reduce((acc, category) => {
+        const categoryVideos = videosForSelectedLevel.filter(
+          (video) => video.category === category.id
+        );
+        if (categoryVideos.length > 0) {
+          acc[category.id] = {
+            category,
+            videos: categoryVideos,
+          };
+        }
+        return acc;
+      }, {} as Record<string, { category: { id: string; name: string }; videos: typeof videosWithCategoryNames }>)
+    : {};
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -277,8 +326,146 @@ export default function VideoSection() {
           </p>
         </motion.div>
 
-        {/* فلاتر التصنيفات */}
-        {categoryList.length > 1 && (
+        {/* عرض المراحل التعليمية أولاً */}
+        {!selectedEducationalLevel && (
+          <motion.div
+            className="mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h3 className="text-2xl md:text-3xl font-bold text-center mb-8 text-gray-900 dark:text-white">
+              اختر المرحلة التعليمية
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              {educationalLevels.map((level, index) => (
+                <motion.button
+                  key={level.id}
+                  onClick={() => {
+                    setSelectedEducationalLevel(level.id);
+                    setSelectedCategory("all");
+                  }}
+                  className="card overflow-hidden group text-right hover:shadow-xl transition-all duration-300 p-0"
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {/* الصورة الكبيرة في الأعلى */}
+                  <div className="relative w-full aspect-[16/9] overflow-hidden bg-gray-200 dark:bg-gray-700">
+                    {level.imageUrl ? (
+                      <img
+                        src={level.imageUrl}
+                        alt={level.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800">
+                        <GraduationCap className="w-16 h-16 text-primary-600 dark:text-primary-400" />
+                      </div>
+                    )}
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    {/* Arrow Icon Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <ArrowRight className="w-12 h-12 text-white drop-shadow-lg transform rotate-180" />
+                    </div>
+                  </div>
+                  
+                  {/* المحتوى */}
+                  <div className="p-6">
+                    <h4 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                      {level.name}
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      اضغط للاطلاع على الفيديوهات
+                    </p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* عرض التصنيفات والفيديوهات عند اختيار مرحلة */}
+        {selectedEducationalLevel && (
+          <>
+            {/* زر العودة */}
+            <motion.div
+              className="mb-6"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <button
+                onClick={() => {
+                  setSelectedEducationalLevel(null);
+                  setSelectedCategory("all");
+                }}
+                className="flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold transition-colors"
+              >
+                <ArrowRight className="w-5 h-5" />
+                <span>العودة إلى المراحل التعليمية</span>
+              </button>
+            </motion.div>
+
+            {/* فلاتر التصنيفات */}
+            {categoriesForSelectedLevel.length > 0 && (
+              <motion.div
+                className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8 md:mb-10"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <motion.button
+                  onClick={() => {
+                    setFiltering(true);
+                    setSelectedCategory("all");
+                    setTimeout(() => {
+                      setFiltering(false);
+                    }, 300);
+                  }}
+                  className={`relative px-6 md:px-8 py-3 md:py-3.5 rounded-full font-semibold text-sm md:text-base transition-all duration-300 ${
+                    selectedCategory === "all"
+                      ? "bg-primary-600 dark:bg-primary-700 text-white shadow-md shadow-primary-500/20 dark:shadow-primary-500/15 ring-2 ring-primary-400/20 dark:ring-primary-600/20 scale-105"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:scale-105"
+                  }`}
+                  whileHover={{ scale: 1.08, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  الكل
+                </motion.button>
+                {categoriesForSelectedLevel.map((category, index) => (
+                  <motion.button
+                    key={category.id}
+                    onClick={() => {
+                      setFiltering(true);
+                      setSelectedCategory(category.id);
+                      setTimeout(() => {
+                        setFiltering(false);
+                      }, 300);
+                    }}
+                    className={`relative px-6 md:px-8 py-3 md:py-3.5 rounded-full font-semibold text-sm md:text-base transition-all duration-300 ${
+                      selectedCategory === category.id
+                        ? "bg-primary-600 dark:bg-primary-700 text-white shadow-md shadow-primary-500/20 dark:shadow-primary-500/15 ring-2 ring-primary-400/20 dark:ring-primary-600/20 scale-105"
+                        : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:scale-105"
+                    }`}
+                    whileHover={{ scale: 1.08, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: selectedCategory === category.id ? 1.05 : 1 }}
+                    transition={{ delay: index * 0.05, type: "spring", stiffness: 300 }}
+                  >
+                    {category.name}
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
+          </>
+        )}
+
+        {/* فلاتر التصنيفات القديمة (مخفاة) */}
+        {false && categories.length > 0 && (
           <motion.div
             className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8 md:mb-10"
             initial={{ opacity: 0, y: 20 }}
@@ -286,7 +473,7 @@ export default function VideoSection() {
             viewport={{ margin: "-50px" }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            {categoryList.map((category, index) => (
+            {categories.map((category, index) => (
               <motion.button
                 key={category.id}
                 onClick={() => {
@@ -322,7 +509,7 @@ export default function VideoSection() {
             transition={{ duration: 0.3 }}
           >
             {/* Categories Skeleton */}
-            {categoryList.length > 1 && (
+            {categories.length > 0 && (
               <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="h-12 w-24 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
@@ -353,6 +540,30 @@ export default function VideoSection() {
               <VideoCardSkeleton key={i} />
             ))}
           </motion.div>
+        ) : !selectedEducationalLevel ? (
+          <motion.div
+            className="text-center py-20"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, type: "spring" }}
+          >
+            <motion.div
+              initial={{ rotate: -180, scale: 0 }}
+              animate={{ rotate: 0, scale: 1 }}
+              transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
+              className="inline-block mb-6"
+            >
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6">
+                <GraduationCap className="w-16 h-16 text-gray-400" />
+              </div>
+            </motion.div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+              اختر المرحلة التعليمية
+            </h3>
+            <p className="text-lg text-gray-600 dark:text-gray-400">
+              يرجى اختيار مرحلة تعليمية للاطلاع على الفيديوهات
+            </p>
+          </motion.div>
         ) : filteredVideos.length === 0 ? (
           <motion.div
             className="text-center py-20"
@@ -377,7 +588,190 @@ export default function VideoSection() {
               لا توجد فيديوهات في هذا التصنيف حالياً
             </p>
           </motion.div>
+        ) : selectedCategory === "all" ? (
+          // عرض الفيديوهات مجمعة حسب التصنيف
+          <div className="space-y-12">
+            {Object.values(videosByCategory).map(({ category, videos: categoryVideos }, categoryIndex) => (
+              <motion.div
+                key={category.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: categoryIndex * 0.1 }}
+              >
+                <h3 className="text-2xl md:text-3xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-3">
+                  <span className="bg-primary-100 dark:bg-primary-900/30 px-4 py-2 rounded-lg">
+                    {category.name}
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400 text-lg">
+                    ({categoryVideos.length})
+                  </span>
+                </h3>
+                <motion.div
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {categoryVideos.map((video, index) => (
+                    <motion.div
+                      key={video.id}
+                      variants={itemVariants}
+                      className="group relative cursor-pointer"
+                      whileHover={{ y: -8, scale: 1.02 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      onClick={async () => {
+                        // إذا كان المستخدم غير مسجل دخول
+                        if (!isAuthenticated) {
+                          setShowMessage({ type: "login", show: true });
+                          return;
+                        }
+
+                        // إذا كان المستخدم غير مشترك، لا نسمح له بفتح الفيديو
+                        if (!hasSubscription) {
+                          setShowMessage({ type: "subscription", show: true });
+                          return;
+                        }
+
+                        // إذا كان المستخدم مشترك، نحاول جلب videoUrl من private/source إذا لم يكن موجوداً
+                        if (hasSubscription && db && auth?.currentUser) {
+                          let finalVideoUrl = video.videoUrl || video.directVideoUrl;
+                          
+                          // إذا لم يكن videoUrl موجوداً، نحاول جلبه من private/source
+                          if (!finalVideoUrl) {
+                            try {
+                              const privateSourceRef = doc(db, "videos", video.id, "private", "source");
+                              const privateSourceDoc = await getDoc(privateSourceRef);
+                              if (privateSourceDoc.exists()) {
+                                const data = privateSourceDoc.data();
+                                finalVideoUrl = data.url || "";
+                              }
+                            } catch (error: any) {
+                              console.error("Error fetching video URL:", error);
+                              // إذا كان الخطأ permission-denied، هذا يعني أن Security Rules تمنع الوصول
+                              if (error.code === "permission-denied") {
+                                setShowMessage({ type: "contact", show: true });
+                                return;
+                              }
+                            }
+                          }
+                          
+                          // إذا لم نجد videoUrl بعد كل المحاولات
+                          if (!finalVideoUrl || finalVideoUrl.trim() === "") {
+                            setShowMessage({ type: "contact", show: true });
+                            return;
+                          }
+                          
+                          // تحديث videoUrl في الفيديو قبل فتحه
+                          setSelectedVideo({
+                            ...video,
+                            videoUrl: finalVideoUrl,
+                            directVideoUrl: finalVideoUrl,
+                          });
+                        } else {
+                          setSelectedVideo(video);
+                        }
+                      }}
+                    >
+                  <div className="relative h-full bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600">
+                    {/* الصورة */}
+                    <div className="relative overflow-hidden bg-gray-200 dark:bg-gray-700 w-full">
+                      <div className="aspect-[16/9] relative w-full">
+                        <img
+                          src={video.thumbnailUrl || video.thumbnail || "https://via.placeholder.com/400x225?text=فيديو"}
+                          alt={video.title}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          loading="lazy"
+                        />
+                        
+                        {/* Gradient Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        
+                        {/* Play Button Overlay */}
+                        <motion.div
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Play className="w-16 h-16 text-primary-600 fill-primary-600 drop-shadow-2xl" />
+                        </motion.div>
+
+                        {/* Duration Badge */}
+                        {video.duration && (
+                          <motion.div
+                            className="absolute bottom-4 left-4 bg-black/90 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-xl"
+                            initial={{ opacity: 0, x: -10 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.2 }}
+                          >
+                            <Clock className="w-4 h-4" />
+                            {video.duration}
+                          </motion.div>
+                        )}
+
+
+                      </div>
+                    </div>
+
+                    {/* المحتوى */}
+                    <div className="p-4">
+                      {/* التاريخ والمشاهدات */}
+                      <div className="flex items-center gap-3 mb-3 text-xs text-gray-500 dark:text-gray-400">
+                        {video.createdAt && (
+                          <span className="flex items-center gap-1.5">
+                            {new Date(video.createdAt.seconds * 1000 || video.createdAt).toLocaleDateString("ar-EG", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric"
+                            })}
+                          </span>
+                        )}
+                        {video.date && !video.createdAt && (
+                          <span>
+                            {new Date(video.date).toLocaleDateString("ar-EG", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric"
+                            })}
+                          </span>
+                        )}
+                        {video.views !== undefined && (
+                          <>
+                            <span className="text-gray-300 dark:text-gray-600">•</span>
+                            <span className="flex items-center gap-1.5">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              {video.views > 1000 ? `${(video.views / 1000).toFixed(1)}K` : video.views} مشاهدة
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* العنوان والمستوى */}
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h3 className="text-lg font-bold flex-1 text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
+                          {video.title}
+                        </h3>
+                        <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
+                          {video.level}
+                        </span>
+                      </div>
+
+                      {/* الوصف */}
+                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">
+                        {video.description}
+                      </p>
+                    </div>
+
+                    {/* Hover Effect Border */}
+                    <div className="absolute inset-0 rounded-2xl border-2 border-primary-500/0 group-hover:border-primary-500/30 transition-all duration-500 pointer-events-none"></div>
+                  </div>
+                </motion.div>
+              ))}
+                </motion.div>
+              </motion.div>
+            ))}
+          </div>
         ) : (
+          // عرض الفيديوهات المفلترة عند اختيار تصنيف معين
           <AnimatePresence mode="wait">
             <motion.div
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
@@ -443,15 +837,14 @@ export default function VideoSection() {
                         directVideoUrl: finalVideoUrl,
                       });
                     } else {
-                      // إذا لم يكن المستخدم مشترك، نفتح الفيديو (لكن لن يعمل بدون URL)
-                    setSelectedVideo(video);
+                      setSelectedVideo(video);
                     }
                   }}
                 >
                   <div className="relative h-full bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600">
                     {/* الصورة */}
-                    <div className="relative overflow-hidden bg-gray-200 dark:bg-gray-700">
-                      <div className="aspect-video relative">
+                    <div className="relative overflow-hidden bg-gray-200 dark:bg-gray-700 w-full">
+                      <div className="aspect-[16/9] relative w-full">
                         <img
                           src={video.thumbnailUrl || video.thumbnail || "https://via.placeholder.com/400x225?text=فيديو"}
                           alt={video.title}
@@ -483,8 +876,6 @@ export default function VideoSection() {
                             {video.duration}
                           </motion.div>
                         )}
-
-
                       </div>
                     </div>
 

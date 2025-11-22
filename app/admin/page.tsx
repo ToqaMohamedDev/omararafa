@@ -38,76 +38,64 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { VideoCardSkeleton, CategoryCardSkeleton, TestCardSkeleton, CourseCardSkeleton, SubscriptionCardSkeleton, MessageCardSkeleton, AdminDashboardSkeleton } from "@/components/Skeleton";
-
-interface Video {
-  id: string;
-  title: string;
-  videoUrl: string;
-  thumbnailUrl: string;
-  description: string;
-  category: string;
-  level: string;
-}
-
-interface Test {
-  id: string;
-  title: string;
-  description: string;
-  duration: string;
-  questions: number;
-  category: string;
-  level: string;
-  questionsData: Array<{
-    id: number;
-    question: string;
-    options: string[];
-    correctAnswer: number;
-    explanation?: string;
-  }>;
-}
-
-interface Course {
-  id: string;
-  title: string;
-  description: string;
-  videoUrl?: string;
-  thumbnailUrl?: string;
-  duration: string;
-  level: string;
-  instructor: string;
-  category?: string;
-}
+import type {
+  Video,
+  Test,
+  Course,
+  Category,
+  EducationalLevel,
+  Subscription,
+  Message,
+  AdminTab,
+  MessageState,
+  ConfirmModal,
+  VideoForm,
+  TestForm,
+  CourseForm,
+  CategoryForm,
+  EducationalLevelForm,
+  SubscriptionForm,
+} from "@/types";
+import { 
+  ERROR_MESSAGES, 
+  SUCCESS_MESSAGES, 
+  SUBSCRIPTION_DURATION_MONTHS,
+  COLLECTIONS 
+} from "@/lib/constants";
+import { validateSubscriptionForm } from "@/lib/validation";
+import { handleFirebaseError, validateFirebaseSetup } from "@/lib/error-handler";
 
 export default function AdminPage() {
   const { user, isAuthenticated, logout, loading: sessionLoading } = useSession();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "courseCategories" | "educationalLevels" | "videos" | "tests" | "courses" | "subscriptions" | "messages">("categories");
+  const [activeTab, setActiveTab] = useState<AdminTab>("categories");
   
   // Categories (for videos)
-  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
-  const [categoryForm, setCategoryForm] = useState({ name: "" });
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>({ name: "" });
   
   // Course Categories (for courses)
-  const [courseCategories, setCourseCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [courseCategories, setCourseCategories] = useState<Category[]>([]);
   const [showCourseCategoryForm, setShowCourseCategoryForm] = useState(false);
-  const [editingCourseCategory, setEditingCourseCategory] = useState<{ id: string; name: string } | null>(null);
-  const [courseCategoryForm, setCourseCategoryForm] = useState({ name: "" });
+  const [editingCourseCategory, setEditingCourseCategory] = useState<Category | null>(null);
+  const [courseCategoryForm, setCourseCategoryForm] = useState<CategoryForm>({ name: "" });
   
   // Educational Levels
-  const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string }>>([]);
+  const [educationalLevels, setEducationalLevels] = useState<EducationalLevel[]>([]);
   const [showEducationalLevelForm, setShowEducationalLevelForm] = useState(false);
-  const [editingEducationalLevel, setEditingEducationalLevel] = useState<{ id: string; name: string } | null>(null);
-  const [educationalLevelForm, setEducationalLevelForm] = useState({ id: "", name: "" });
+  const [editingEducationalLevel, setEditingEducationalLevel] = useState<EducationalLevel | null>(null);
+  const [educationalLevelForm, setEducationalLevelForm] = useState<EducationalLevelForm>({ id: "", name: "", imageUrl: "" });
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   
   // Videos
   const [videos, setVideos] = useState<Video[]>([]);
   const [showVideoForm, setShowVideoForm] = useState(false);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [videoForm, setVideoForm] = useState({
+  const [videoForm, setVideoForm] = useState<VideoForm>({
     title: "",
     videoUrl: "",
     thumbnailUrl: "",
@@ -120,26 +108,20 @@ export default function AdminPage() {
   const [tests, setTests] = useState<Test[]>([]);
   const [showTestForm, setShowTestForm] = useState(false);
   const [editingTest, setEditingTest] = useState<Test | null>(null);
-  const [testForm, setTestForm] = useState({
+  const [testForm, setTestForm] = useState<TestForm>({
     title: "",
     description: "",
     duration: "",
-    category: "",
     level: "",
-    questionsData: [] as Array<{
-      id: number;
-      question: string;
-      options: string[];
-      correctAnswer: number;
-      explanation?: string;
-    }>,
+    questions: 0,
+    questionsData: [],
   });
 
   // Courses
   const [courses, setCourses] = useState<Course[]>([]);
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [courseForm, setCourseForm] = useState({
+  const [courseForm, setCourseForm] = useState<CourseForm>({
     title: "",
     description: "",
     videoUrl: "",
@@ -151,53 +133,27 @@ export default function AdminPage() {
   });
 
   // Subscriptions
-  const [subscriptions, setSubscriptions] = useState<Array<{
-    id: string;
-    userId: string;
-    adminId: string;
-    createdAt: any;
-    endsAt: any;
-    userName?: string;
-    userEmail?: string;
-    userPhone?: string;
-  }>>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [showSubscriptionForm, setShowSubscriptionForm] = useState(false);
-  const [subscriptionForm, setSubscriptionForm] = useState({ userId: "" });
+  const [subscriptionForm, setSubscriptionForm] = useState<SubscriptionForm>({ userId: "", educationalLevelId: "" });
   const [subscriptionSearch, setSubscriptionSearch] = useState("");
 
   // Messages
-  const [messages, setMessages] = useState<Array<{
-    id: string;
-    userId: string | null;
-    userName: string;
-    userEmail: string;
-    userPhone: string;
-    subject: string;
-    message: string;
-    createdAt: any;
-    read: boolean;
-  }>>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messageSearch, setMessageSearch] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<MessageState | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   
   // Confirmation Modal State
-  const [confirmModal, setConfirmModal] = useState<{
-    show: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    confirmText?: string;
-    cancelText?: string;
-  }>({
+  const [confirmModal, setConfirmModal] = useState<ConfirmModal>({
     show: false,
     title: "",
     message: "",
-    onConfirm: () => {},
     confirmText: "تأكيد",
     cancelText: "إلغاء",
+    onConfirm: async () => {},
   });
 
   const checkAdmin = useCallback(async () => {
@@ -293,7 +249,7 @@ export default function AdminPage() {
       setCourseCategories(courseCategoriesData);
 
       // Load educational levels
-      let educationalLevelsData: Array<{ id: string; name: string }> = [];
+      let educationalLevelsData: Array<{ id: string; name: string; imageUrl?: string }> = [];
       if (db) {
         try {
           const educationalLevelsQuery = query(collection(db, "educationalLevels"), orderBy("name"));
@@ -301,6 +257,7 @@ export default function AdminPage() {
           educationalLevelsData = educationalLevelsSnapshot.docs.map((doc) => ({
             id: doc.id,
             name: doc.data().name,
+            imageUrl: doc.data().imageUrl || "",
           }));
         } catch (error) {
           console.error("Error fetching educational levels from Firestore:", error);
@@ -384,7 +341,7 @@ export default function AdminPage() {
       // Load subscriptions
       if (db && auth?.currentUser) {
         try {
-          const subscriptionsQuery = query(collection(db, "subscriptions"), orderBy("createdAt", "desc"));
+          const subscriptionsQuery = query(collection(db, COLLECTIONS.SUBSCRIPTIONS), orderBy("createdAt", "desc"));
           const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
           const subscriptionsData = await Promise.all(
             subscriptionsSnapshot.docs.map(async (subscriptionDoc) => {
@@ -396,7 +353,7 @@ export default function AdminPage() {
               // إذا لم تكن البيانات موجودة، نحاول جلبها من users collection
               if ((!userName || !userEmail) && db) {
                 try {
-                  const userRef = doc(db, "users", data.userId);
+                  const userRef = doc(db, COLLECTIONS.USERS, data.userId);
                   const userDoc = await getDoc(userRef);
                   if (userDoc.exists()) {
                     const userData = userDoc.data() as { name?: string; email?: string; phone?: string };
@@ -427,6 +384,7 @@ export default function AdminPage() {
                 userName: userName,
                 userEmail: userEmail,
                 userPhone: userPhone,
+                educationalLevelId: data.educationalLevelId || undefined,
               };
             })
           );
@@ -439,7 +397,7 @@ export default function AdminPage() {
       // Load messages
       if (db && auth?.currentUser) {
         try {
-          const messagesQuery = query(collection(db, "messages"), orderBy("createdAt", "desc"));
+          const messagesQuery = query(collection(db, COLLECTIONS.MESSAGES), orderBy("createdAt", "desc"));
           const messagesSnapshot = await getDocs(messagesQuery);
           const messagesData = messagesSnapshot.docs.map((doc) => ({
             id: doc.id,
@@ -748,6 +706,7 @@ export default function AdminPage() {
     try {
       const levelName = educationalLevelForm.name.trim();
       const levelId = educationalLevelForm.id.trim();
+      const imageUrl = educationalLevelForm.imageUrl.trim();
       
       if (!levelName) {
         setMessage({ type: "error", text: "اسم المرحلة التعليمية مطلوب" });
@@ -793,6 +752,7 @@ export default function AdminPage() {
         await updateDoc(levelRef, {
           name: levelName,
           id: levelId,
+          imageUrl: imageUrl || null,
           updatedAt: serverTimestamp(),
         });
 
@@ -822,6 +782,7 @@ export default function AdminPage() {
         await setDoc(doc(db, "educationalLevels", levelId), {
           name: levelName,
           id: levelId,
+          imageUrl: imageUrl || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -831,7 +792,7 @@ export default function AdminPage() {
 
         setShowEducationalLevelForm(false);
         setEditingEducationalLevel(null);
-        setEducationalLevelForm({ id: "", name: "" });
+        setEducationalLevelForm({ id: "", name: "", imageUrl: "" });
         loadData();
     } catch (error: any) {
       console.error("Error saving educational level:", error);
@@ -841,9 +802,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleEditEducationalLevel = (level: { id: string; name: string }) => {
+  const handleEditEducationalLevel = (level: { id: string; name: string; imageUrl?: string }) => {
     setEditingEducationalLevel(level);
-    setEducationalLevelForm({ id: level.id, name: level.name });
+    setEducationalLevelForm({ id: level.id, name: level.name, imageUrl: level.imageUrl || "" });
     setShowEducationalLevelForm(true);
   };
 
@@ -868,6 +829,12 @@ export default function AdminPage() {
 
       if (!videoForm.level) {
         setMessage({ type: "error", text: "يجب اختيار مرحلة تعليمية للفيديو" });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!videoForm.level) {
+        setMessage({ type: "error", text: "المرحلة التعليمية مطلوبة" });
         setSubmitting(false);
         return;
       }
@@ -906,7 +873,7 @@ export default function AdminPage() {
           category: videoForm.category,
           level: videoForm.level,
           updatedAt: serverTimestamp(),
-      });
+        });
 
         // إذا كان videoUrl موجود، تحديث private/source
         if (videoForm.videoUrl) {
@@ -1057,6 +1024,12 @@ export default function AdminPage() {
         return;
       }
 
+      if (!testForm.level) {
+        setMessage({ type: "error", text: "المرحلة التعليمية مطلوبة" });
+        setSubmitting(false);
+        return;
+      }
+
       // التحقق من وجود المرحلة التعليمية
       const levelRef = doc(db, "educationalLevels", testForm.level);
       const levelDoc = await getDoc(levelRef);
@@ -1075,7 +1048,6 @@ export default function AdminPage() {
         await updateDoc(testRef, {
           title: testForm.title,
           description: testForm.description,
-          category: testForm.category || "",
           level: testForm.level,
           duration: duration,
           updatedAt: serverTimestamp(),
@@ -1093,7 +1065,6 @@ export default function AdminPage() {
         const testRef = await addDoc(collection(db, "tests"), {
           title: testForm.title,
           description: testForm.description,
-          category: testForm.category || "",
           level: testForm.level,
           duration: duration,
           createdAt: serverTimestamp(),
@@ -1115,8 +1086,8 @@ export default function AdminPage() {
           title: "",
           description: "",
           duration: "",
-          category: "",
           level: "",
+          questions: 0,
           questionsData: [],
         });
         loadData();
@@ -1150,8 +1121,8 @@ export default function AdminPage() {
       title: test.title,
       description: test.description,
       duration: test.duration,
-      category: test.category,
       level: test.level,
+      questions: test.questions || questionsData.length,
       questionsData: questionsData,
     });
     setShowTestForm(true);
@@ -1418,24 +1389,28 @@ export default function AdminPage() {
     setMessage(null);
 
     if (!db || !user?.uid) {
-      setMessage({ type: "error", text: "Firebase غير مهيأ أو المستخدم غير مسجل دخول." });
+      setMessage({ type: "error", text: ERROR_MESSAGES.FIREBASE_NOT_INITIALIZED });
       setSubmitting(false);
       return;
     }
 
     try {
-      const userId = subscriptionForm.userId.trim();
-      if (!userId) {
-        setMessage({ type: "error", text: "معرف المستخدم مطلوب" });
+      // التحقق من صحة البيانات
+      const validation = validateSubscriptionForm(subscriptionForm);
+      if (!validation.isValid) {
+        setMessage({ type: "error", text: validation.errors.join("، ") });
         setSubmitting(false);
         return;
       }
 
+      const userId = subscriptionForm.userId.trim();
+      const educationalLevelId = subscriptionForm.educationalLevelId.trim();
+
       // التحقق من وجود المستخدم وجلب بياناته
-      const userRef = doc(db, "users", userId);
+      const userRef = doc(db, COLLECTIONS.USERS, userId);
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
-        setMessage({ type: "error", text: "المستخدم غير موجود" });
+        setMessage({ type: "error", text: ERROR_MESSAGES.USER_NOT_FOUND });
         setSubmitting(false);
         return;
       }
@@ -1447,19 +1422,19 @@ export default function AdminPage() {
       const userPhone = userData.phone || "";
 
       // التحقق من وجود اشتراك سابق
-      const subscriptionRef = doc(db, "subscriptions", userId);
+      const subscriptionRef = doc(db, COLLECTIONS.SUBSCRIPTIONS, userId);
       const subscriptionDoc = await getDoc(subscriptionRef);
       
       if (subscriptionDoc.exists()) {
-        setMessage({ type: "error", text: "المستخدم لديه اشتراك موجود بالفعل" });
+        setMessage({ type: "error", text: ERROR_MESSAGES.SUBSCRIPTION_EXISTS });
         setSubmitting(false);
         return;
       }
 
-      // حساب تاريخ الانتهاء (شهر واحد من الآن)
+      // حساب تاريخ الانتهاء
       const now = new Date();
       const endsAt = new Date(now);
-      endsAt.setMonth(endsAt.getMonth() + 1);
+      endsAt.setMonth(endsAt.getMonth() + SUBSCRIPTION_DURATION_MONTHS);
 
       // إنشاء الاشتراك مع بيانات المستخدم
       await setDoc(subscriptionRef, {
@@ -1470,15 +1445,16 @@ export default function AdminPage() {
         userName: userName,
         userEmail: userEmail,
         userPhone: userPhone,
+        educationalLevelId: educationalLevelId,
       });
 
-      setMessage({ type: "success", text: "تم إضافة الاشتراك بنجاح" });
+      setMessage({ type: "success", text: SUCCESS_MESSAGES.SUBSCRIPTION_ADDED });
       setShowSubscriptionForm(false);
-      setSubscriptionForm({ userId: "" });
+      setSubscriptionForm({ userId: "", educationalLevelId: "" });
       loadData();
     } catch (error: any) {
       console.error("Error saving subscription:", error);
-      setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حفظ الاشتراك" });
+      setMessage({ type: "error", text: error.message || ERROR_MESSAGES.GENERIC_ERROR });
     } finally {
       setSubmitting(false);
     }
@@ -1500,14 +1476,14 @@ export default function AdminPage() {
         }
 
         try {
-          const subscriptionRef = doc(db, "subscriptions", userId);
+          const subscriptionRef = doc(db, COLLECTIONS.SUBSCRIPTIONS, userId);
           await deleteDoc(subscriptionRef);
 
-          setMessage({ type: "success", text: "تم حذف الاشتراك بنجاح" });
+          setMessage({ type: "success", text: SUCCESS_MESSAGES.SUBSCRIPTION_DELETED });
           loadData();
         } catch (error: any) {
           console.error("Error deleting subscription:", error);
-          setMessage({ type: "error", text: error.message || "حدث خطأ أثناء حذف الاشتراك" });
+          setMessage({ type: "error", text: error.message || ERROR_MESSAGES.GENERIC_ERROR });
         }
       },
     });
@@ -1841,7 +1817,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setEditingEducationalLevel(null);
-                  setEducationalLevelForm({ id: "", name: "" });
+                  setEducationalLevelForm({ id: "", name: "", imageUrl: "" });
                   setShowEducationalLevelForm(true);
                 }}
                 className="flex items-center gap-2 btn-primary w-full sm:w-auto"
@@ -1874,6 +1850,30 @@ export default function AdminPage() {
                         className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                       />
                     </div>
+                    <div>
+                      <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">
+                        رابط الصورة (اختياري)
+                      </label>
+                      <input
+                        type="url"
+                        value={educationalLevelForm.imageUrl}
+                        onChange={(e) => setEducationalLevelForm({ ...educationalLevelForm, imageUrl: e.target.value })}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
+                      />
+                      {educationalLevelForm.imageUrl && (
+                        <div className="mt-3">
+                          <img
+                            src={educationalLevelForm.imageUrl}
+                            alt="Preview"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300 dark:border-gray-600"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="flex gap-4">
                       <button
                         type="submit"
@@ -1887,7 +1887,7 @@ export default function AdminPage() {
                         onClick={() => {
                           setShowEducationalLevelForm(false);
                           setEditingEducationalLevel(null);
-                          setEducationalLevelForm({ id: "", name: "" });
+                          setEducationalLevelForm({ id: "", name: "", imageUrl: "" });
                         }}
                         className="px-6 py-2 border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                       >
@@ -1927,9 +1927,22 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 flex-1">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#FF8C42] flex items-center justify-center shadow-md">
-                          <GraduationCap className="w-6 h-6 text-white" strokeWidth={2.5} />
-                        </div>
+                        {level.imageUrl && !imageErrors.has(level.id) ? (
+                          <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                            <img
+                              src={level.imageUrl}
+                              alt={level.name}
+                              className="w-full h-full object-cover"
+                              onError={() => {
+                                setImageErrors((prev) => new Set(prev).add(level.id));
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#FF8C42] flex items-center justify-center shadow-md">
+                            <GraduationCap className="w-6 h-6 text-white" strokeWidth={2.5} />
+                          </div>
+                        )}
                         <h3 className="font-bold text-lg text-gray-900 dark:text-white">{level.name}</h3>
                       </div>
                       <div className="flex gap-2">
@@ -1964,7 +1977,7 @@ export default function AdminPage() {
                     thumbnailUrl: "",
                     description: "",
                     category: "",
-                    level: "مبتدئ",
+                    level: "",
                   });
                   setShowVideoForm(true);
                 }}
@@ -2049,7 +2062,12 @@ export default function AdminPage() {
                           <select
                             required
                             value={videoForm.level}
-                            onChange={(e) => setVideoForm({ ...videoForm, level: e.target.value })}
+                            onChange={(e) => {
+                              setVideoForm({ 
+                                ...videoForm, 
+                                level: e.target.value
+                              });
+                            }}
                             className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                           >
                             <option value="">اختر المرحلة التعليمية</option>
@@ -2170,8 +2188,8 @@ export default function AdminPage() {
                     title: "",
                     description: "",
                     duration: "",
-                    category: "",
                     level: "",
+                    questions: 0,
                     questionsData: [],
                   });
                   setShowTestForm(true);
@@ -2205,16 +2223,6 @@ export default function AdminPage() {
                         />
                       </div>
                       <div>
-                        <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">التصنيف</label>
-                        <input
-                          type="text"
-                          required
-                          value={testForm.category}
-                          onChange={(e) => setTestForm({ ...testForm, category: e.target.value })}
-                          className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
-                        />
-                      </div>
-                      <div>
                         <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300">المرحلة التعليمية</label>
                         {educationalLevels.length === 0 ? (
                           <div className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 text-gray-500 dark:text-gray-400">
@@ -2224,7 +2232,12 @@ export default function AdminPage() {
                           <select
                             required
                             value={testForm.level}
-                            onChange={(e) => setTestForm({ ...testForm, level: e.target.value })}
+                            onChange={(e) => {
+                              setTestForm({ 
+                                ...testForm, 
+                                level: e.target.value
+                              });
+                            }}
                             className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                           >
                             <option value="">اختر المرحلة التعليمية</option>
@@ -2666,7 +2679,7 @@ export default function AdminPage() {
               </h2>
               <button
                 onClick={() => {
-                  setSubscriptionForm({ userId: "" });
+                  setSubscriptionForm({ userId: "", educationalLevelId: "" });
                   setShowSubscriptionForm(true);
                 }}
                 className="flex items-center gap-2 btn-primary w-full sm:w-auto"
@@ -2694,13 +2707,38 @@ export default function AdminPage() {
                         type="text"
                         required
                         value={subscriptionForm.userId}
-                        onChange={(e) => setSubscriptionForm({ userId: e.target.value })}
+                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, userId: e.target.value })}
                         placeholder="أدخل User ID الخاص بالطالب"
                         className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all"
                       />
                       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                         سيتم إنشاء اشتراك لمدة شهر واحد تلقائياً
                       </p>
+                    </div>
+
+                    <div>
+                      <label className="block mb-2 md:mb-3 font-semibold text-sm md:text-base text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" />
+                        المرحلة التعليمية <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={subscriptionForm.educationalLevelId}
+                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, educationalLevelId: e.target.value })}
+                        className="w-full px-4 py-2.5 md:py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 focus:ring-2 focus:ring-primary-DEFAULT focus:border-transparent transition-all text-gray-900 dark:text-white"
+                      >
+                        <option value="">اختر المرحلة التعليمية</option>
+                        {educationalLevels.map((level) => (
+                          <option key={level.id} value={level.id}>
+                            {level.name}
+                          </option>
+                        ))}
+                      </select>
+                      {educationalLevels.length === 0 && (
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                          جاري تحميل المراحل التعليمية...
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex gap-3 md:gap-4">
@@ -2725,7 +2763,7 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => {
                           setShowSubscriptionForm(false);
-                          setSubscriptionForm({ userId: "" });
+                          setSubscriptionForm({ userId: "", educationalLevelId: "" });
                         }}
                         className="flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
                       >
@@ -2815,6 +2853,12 @@ export default function AdminPage() {
                             {subscription.userPhone && (
                               <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                                 {subscription.userPhone}
+                              </p>
+                            )}
+                            {subscription.educationalLevelId && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
+                                <GraduationCap className="w-4 h-4" />
+                                {educationalLevels.find(level => level.id === subscription.educationalLevelId)?.name || subscription.educationalLevelId}
                               </p>
                             )}
                             <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">

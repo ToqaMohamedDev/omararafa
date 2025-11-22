@@ -8,31 +8,41 @@ service cloud.firestore {
     // دوال مساعدة (Helper Functions)
     // ---------------------------------------------------------
 
-    // دالة للتحقق من اشتراك المستخدم
-    function hasValidSubscription() {
+    function hasValidSubscription(requiredLevelId) {
+      // إذا لم يكن requiredLevelId موجوداً، نرفض الوصول
+      if (requiredLevelId == null || requiredLevelId == "") {
+        return false;
+      }
+      
+      let subPath = /databases/$(database)/documents/subscriptions/$(request.auth.uid);
+      
+      // التحقق من وجود الاشتراك أولاً
+      if (!exists(subPath)) {
+        return false;
+      }
+      
+      let subscription = get(subPath).data;
+      
+      // التحقق من أن الاشتراك نشط وأن educationalLevelId متطابق
       return request.auth != null &&
-             exists(/databases/$(database)/documents/subscriptions/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.endsAt > request.time;
+             subscription.endsAt > request.time &&
+             subscription.educationalLevelId != null &&
+             subscription.educationalLevelId == requiredLevelId;
     }
 
-    // دالة للتحقق من أن المستخدم أدمن
-    // تفترض هذه الدالة وجود كولكشن باسم 'roles'
-    // إذا وُجد document في roles/{userId}، فهو admin
     function isAdmin() {
       return request.auth != null &&
-             exists(/databases/$(database)/documents/roles/$(request.auth.uid));
+             exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
     }
 
     // ---------------------------------------------------------
     // القواعد (Rules)
     // ---------------------------------------------------------
 
-    // قواعد كولكشن الأدوار (لحماية بيانات الأدمن نفسه)
     match /roles/{userId} {
-      // السماح للمستخدم بقراءة role الخاص به فقط
-      allow read: if request.auth != null && request.auth.uid == userId;
-      // السماح للأدمن بإنشاء/تحديث الأدوار (لكل المستخدمين)
-      allow write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false; 
     }
 
     match /users/{userId} {
@@ -41,61 +51,64 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
     }
 
-    // قواعد الاشتراكات
-    match /subscriptions/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if isAdmin();
-    }
-
     match /videos/{videoId} {
-      // السماح بالقراءة للجميع، والكتابة (إضافة/حذف/تعديل) للأدمن فقط
+      // السماح بالقراءة للجميع عشان يشوفوا عنوان الفيديو وصورته
       allow read: if true; 
       allow write: if isAdmin();
 
+      // حماية رابط الفيديو (المصدر)
       match /private/source {
-        allow read: if hasValidSubscription();
-        allow write: if isAdmin(); // الأدمن يمكنه تعديل المصادر الخاصة
+        // هنا بنجيب بيانات الفيديو الأب (Parent) عشان نعرف هو تبع أي مرحلة دراسية
+        // نتحقق من وجود الفيديو وأنه يحتوي على educationalLevelId
+        allow read: if request.auth != null && 
+                       exists(/databases/$(database)/documents/videos/$(videoId)) &&
+                       get(/databases/$(database)/documents/videos/$(videoId)).data.educationalLevelId != null &&
+                       hasValidSubscription(get(/databases/$(database)/documents/videos/$(videoId)).data.educationalLevelId);
+        allow write: if isAdmin();
       }
     }
-
+    
+    match /educationalLevels/{levelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /subscriptions/{subscriptionId} {
+      // المستخدم يشوف اشتراكه بس، والأدمن يشوف الكل
+      // ملاحظة: subscriptionId هنا هو userId (لأن document ID = userId)
+      allow read: if request.auth != null && (subscriptionId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    
     match /tests/{testId} {
-      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
       allow read: if true; 
       allow write: if isAdmin();
 
+      // حماية محتوى الامتحان
       match /private/content {
-        allow read: if hasValidSubscription();
+        // نفس الفكرة: بنجيب بيانات الامتحان عشان نقارن المرحلة الدراسية
+        // نتحقق من وجود الاختبار وأنه يحتوي على level (ID المرحلة التعليمية)
+        allow read: if request.auth != null && 
+                       exists(/databases/$(database)/documents/tests/$(testId)) &&
+                       get(/databases/$(database)/documents/tests/$(testId)).data.level != null &&
+                       hasValidSubscription(get(/databases/$(database)/documents/tests/$(testId)).data.level);
         allow write: if isAdmin();
       }
     }
 
     match /categories/{categoryId} {
-      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /courseCategories/{categoryId} {
-      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    match /educationalLevels/{levelId} {
-      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
-      allow read: if true;
+    match /courses/{document=**} {
+      allow read: if request.auth != null;
       allow write: if isAdmin();
-    }
-
-    match /courses/{courseId} {
-      // السماح بالقراءة للجميع، والكتابة للأدمن فقط
-      allow read: if true;
-      allow write: if isAdmin();
-
-      match /private/source {
-        allow read: if hasValidSubscription();
-        allow write: if isAdmin(); // الأدمن يمكنه تعديل المصادر الخاصة
-      }
     }
 
     // قواعد الرسائل (الشكاوي)
@@ -111,10 +124,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // منع الوصول لأي شيء آخر افتراضياً
+    // ---------------------------------------------------------
+    // قفل باقي قاعدة البيانات (هام جداً للأمان)
+    // ---------------------------------------------------------
     match /{document=**} {
-      allow read, write: if false;
+      // تم التغيير إلى false لمنع أي وصول غير مصرح به
+      allow read, write: if false; 
     }
   }
 }
-
