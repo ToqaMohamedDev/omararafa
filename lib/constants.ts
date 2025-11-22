@@ -13,7 +13,6 @@ export const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: "numeric",
   month: "long",
   day: "numeric",
-  locale: "ar-EG",
 };
 
 // Error Messages

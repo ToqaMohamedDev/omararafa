@@ -1188,7 +1188,6 @@ export default function RegisterPage() {
                   setGoogleUserData(null);
                   setPhone("");
                   setBirthDate("");
-                  setEducationalLevelId("");
                   setError("");
                   setIsLoading(false);
                   // تسجيل خروج المستخدم من Google

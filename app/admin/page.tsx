@@ -19,7 +19,7 @@ import {
   setDoc
 } from "firebase/firestore";
 import { 
-  Video, 
+  Video as VideoIcon, 
   FileText, 
   BookOpen, 
   Plus, 
@@ -1542,7 +1542,7 @@ export default function AdminPage() {
             { id: "categories" as const, label: "تصنيفات الفيديوهات", icon: Tag },
             { id: "courseCategories" as const, label: "تصنيفات الكورسات", icon: BookOpen },
             { id: "educationalLevels" as const, label: "المراحل التعليمية", icon: GraduationCap },
-            { id: "videos" as const, label: "الفيديوهات", icon: Video },
+            { id: "videos" as const, label: "الفيديوهات", icon: VideoIcon },
             { id: "tests" as const, label: "الاختبارات", icon: FileText },
             { id: "courses" as const, label: "الكورسات", icon: BookOpen },
             { id: "subscriptions" as const, label: "الاشتراكات", icon: CreditCard },
@@ -2123,7 +2123,7 @@ export default function AdminPage() {
               </div>
             ) : videos.length === 0 ? (
               <div className="text-center py-12 card card-padding">
-                <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <VideoIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-lg text-gray-600 dark:text-gray-400">
                   لا توجد فيديوهات. أضف فيديو جديداً للبدء.
                 </p>
