@@ -76,12 +76,36 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
 
   // Fullscreen
   const toggleFullscreen = () => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !videoRef.current) return;
     
+    // على الموبايل (iOS/Safari)، استخدم webkitEnterFullscreen للفيديو مباشرة
+    const videoElement = videoRef.current as any;
+    if (videoElement.webkitEnterFullscreen) {
+      videoElement.webkitEnterFullscreen();
+      return;
+    }
+    
+    // على الويب، استخدم Fullscreen API
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen();
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen();
+      } else if ((containerRef.current as any).webkitRequestFullscreen) {
+        (containerRef.current as any).webkitRequestFullscreen();
+      } else if ((containerRef.current as any).mozRequestFullScreen) {
+        (containerRef.current as any).mozRequestFullScreen();
+      } else if ((containerRef.current as any).msRequestFullscreen) {
+        (containerRef.current as any).msRequestFullscreen();
+      }
     } else {
-      document.exitFullscreen();
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      } else if ((document as any).mozCancelFullScreen) {
+        (document as any).mozCancelFullScreen();
+      } else if ((document as any).msExitFullscreen) {
+        (document as any).msExitFullscreen();
+      }
     }
   };
 
@@ -303,6 +327,12 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                   ref={videoRef}
                   className="w-full h-full"
                   playsInline
+                  {...({
+                    'webkit-playsinline': 'true',
+                    'x5-video-player-type': 'h5',
+                    'x5-video-player-fullscreen': 'true',
+                    'x5-video-orientation': 'portrait'
+                  } as any)}
                   onClick={togglePlay}
                   onContextMenu={(e) => e.preventDefault()}
                   style={{
