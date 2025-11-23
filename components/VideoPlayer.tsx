@@ -302,7 +302,6 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                 <video
                   ref={videoRef}
                   className="w-full h-full"
-                  poster={thumbnailUrl}
                   playsInline
                   onClick={togglePlay}
                   onContextMenu={(e) => e.preventDefault()}
@@ -317,21 +316,6 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                   <source src={finalVideoUrl} type="video/webm" />
                   المتصفح الخاص بك لا يدعم تشغيل الفيديو.
                 </video>
-                
-                {/* Poster Image Overlay - إذا كانت الصورة موجودة */}
-                {thumbnailUrl && !isPlaying && !loading && (
-                  <div 
-                    className="absolute inset-0 z-0"
-                    style={{
-                      backgroundImage: `url(${thumbnailUrl})`,
-                      backgroundSize: 'contain',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat',
-                      width: '100%',
-                      height: '100%'
-                    }}
-                  />
-                )}
 
                 {/* Play Button Overlay */}
                 {!isPlaying && !loading && (
@@ -385,57 +369,57 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 20 }}
-                      className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/95 via-black/80 to-transparent backdrop-blur-md"
+                      className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/95 via-black/80 to-transparent backdrop-blur-sm sm:backdrop-blur-md"
                     >
                       {/* Progress Bar */}
                       <div
                         ref={progressRef}
                         onClick={handleProgressClick}
-                        className="relative h-2 bg-white/20 cursor-pointer group hover:h-3 transition-all"
+                        className="relative h-1.5 sm:h-2 bg-white/20 cursor-pointer group sm:hover:h-3 transition-all"
                       >
                         <div
                           className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-600 to-red-600"
                           style={{ width: `${progress}%` }}
                         />
                         <div
-                          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 bg-white rounded-full shadow-lg opacity-0 sm:group-hover:opacity-100 transition-opacity"
                           style={{ left: `${progress}%`, transform: 'translate(-50%, -50%)' }}
                         />
                       </div>
 
                       {/* Control Buttons */}
-                      <div className="flex items-center justify-between px-6 py-4 gap-4">
+                      <div className="flex items-center justify-between px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 gap-2 sm:gap-3 md:gap-4">
                         {/* Left Side */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-1 min-w-0">
                           {/* Play/Pause */}
                           <button
                             onClick={togglePlay}
-                            className="text-white hover:text-orange-500 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                            className="text-white hover:text-orange-500 transition-colors p-1.5 sm:p-2 hover:bg-white/10 rounded-lg flex-shrink-0"
                           >
-                            {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" fill="currentColor" />}
+                            {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" fill="currentColor" />}
                           </button>
 
-                          {/* Skip Buttons */}
+                          {/* Skip Buttons - مخفية على الموبايل */}
                           <button
                             onClick={() => skip(-10)}
-                            className="text-white hover:text-orange-500 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                            className="hidden sm:flex text-white hover:text-orange-500 transition-colors p-1.5 sm:p-2 hover:bg-white/10 rounded-lg"
                           >
-                            <SkipBack className="w-5 h-5" />
+                            <SkipBack className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
                           <button
                             onClick={() => skip(10)}
-                            className="text-white hover:text-orange-500 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                            className="hidden sm:flex text-white hover:text-orange-500 transition-colors p-1.5 sm:p-2 hover:bg-white/10 rounded-lg"
                           >
-                            <SkipForward className="w-5 h-5" />
+                            <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
 
-                          {/* Volume */}
-                          <div className="flex items-center gap-2">
+                          {/* Volume - مخفية على الموبايل */}
+                          <div className="hidden md:flex items-center gap-2">
                             <button
                               onClick={toggleMute}
-                              className="text-white hover:text-orange-500 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                              className="text-white hover:text-orange-500 transition-colors p-1.5 sm:p-2 hover:bg-white/10 rounded-lg"
                             >
-                              {isMuted || volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                              {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
                             </button>
                             <input
                               type="range"
@@ -444,24 +428,33 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                               step="0.01"
                               value={isMuted ? 0 : volume}
                               onChange={handleVolumeChange}
-                              className="w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                              className="w-16 sm:w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
                             />
                           </div>
 
+                          {/* Mute Button فقط على الموبايل */}
+                          <button
+                            onClick={toggleMute}
+                            className="md:hidden text-white hover:text-orange-500 transition-colors p-1.5 hover:bg-white/10 rounded-lg flex-shrink-0"
+                          >
+                            {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          </button>
+
                           {/* Time */}
-                          <div className="text-white text-sm font-mono">
-                            {formatTime(currentTime)} / {formatTime(duration)}
+                          <div className="text-white text-xs sm:text-sm font-mono flex-shrink-0 ml-auto sm:ml-0">
+                            <span className="hidden sm:inline">{formatTime(currentTime)} / {formatTime(duration)}</span>
+                            <span className="sm:hidden">{formatTime(currentTime)}</span>
                           </div>
                         </div>
 
                         {/* Right Side */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
                           {/* Fullscreen */}
                           <button
                             onClick={toggleFullscreen}
-                            className="text-white hover:text-orange-500 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                            className="text-white hover:text-orange-500 transition-colors p-1.5 sm:p-2 hover:bg-white/10 rounded-lg"
                           >
-                            {isFullscreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+                            {isFullscreen ? <Minimize className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /> : <Maximize className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />}
                           </button>
                         </div>
                       </div>
