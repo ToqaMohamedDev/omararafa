@@ -42,7 +42,7 @@ export default function CategoriesSection() {
         }
 
         // جلب جميع الفيديوهات لحساب عدد الفيديوهات لكل تصنيف
-        let videosData: Array<{ category?: string }> = [];
+        let videosData: Array<{ id?: string; category?: string; [key: string]: any }> = [];
         if (db) {
           try {
             // محاولة جلب الفيديوهات من API أولاً
