@@ -222,8 +222,8 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
         >
           {/* Title */}
           {title && !isFullscreen && (
-            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent p-6 pr-20">
-              <h3 className="text-xl md:text-2xl font-bold text-white">{title}</h3>
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent p-2 sm:p-4 md:p-6 pr-10 sm:pr-16 md:pr-20">
+              <h3 className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold text-white line-clamp-2">{title}</h3>
             </div>
           )}
 
@@ -231,10 +231,10 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
           {onClose && !isFullscreen && (
             <button
               onClick={onClose}
-              className="absolute top-6 right-6 z-[100] bg-white/10 hover:bg-red-500/90 text-white rounded-xl p-2.5 transition-all duration-300 backdrop-blur-lg border border-white/20 hover:scale-110 hover:rotate-90 shadow-lg hover:shadow-red-500/50"
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 md:top-6 md:right-6 z-[100] bg-white/10 hover:bg-red-500/90 text-white rounded-lg sm:rounded-xl p-1.5 sm:p-2 md:p-2.5 transition-all duration-300 backdrop-blur-lg border border-white/20 hover:scale-110 hover:rotate-90 shadow-lg hover:shadow-red-500/50"
               aria-label="إغلاق"
             >
-              <X className="w-5 h-5" strokeWidth={2.5} />
+              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" strokeWidth={2.5} />
             </button>
           )}
 
