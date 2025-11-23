@@ -2,7 +2,7 @@
 
 import { useSession } from "@/hooks/useSession";
 import { useRouter } from "next/navigation";
-import { User, Mail, Award, BookOpen, Clock, TrendingUp, LogOut, Phone, Calendar, Copy, Check, MessageSquare } from "lucide-react";
+import { User, Mail, Award, BookOpen, TrendingUp, LogOut, Phone, Calendar, Copy, Check, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase-client";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
@@ -28,6 +28,13 @@ export default function ProfilePage() {
     read: boolean;
   }>>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [userStats, setUserStats] = useState({
+    completedTests: 0,
+    averageScore: 0,
+    level: "مبتدئ",
+    levelScore: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -37,8 +44,114 @@ export default function ProfilePage() {
         phone: user.phone || "",
         birthDate: user.birthDate || "",
       });
+      
+      // تحديث الإحصائيات من بيانات المستخدم
+      setUserStats({
+        completedTests: user.completedTests || 0,
+        averageScore: user.averageScore || 0,
+        level: user.level || "مبتدئ",
+        levelScore: user.levelScore || 0,
+      });
     }
   }, [user]);
+
+  // جلب الإحصائيات مباشرة من Firestore
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!user?.uid || !db) return;
+      
+      setLoadingStats(true);
+      try {
+        const { query: firestoreQuery, collection: firestoreCollection, where: firestoreWhere, orderBy: firestoreOrderBy, getDocs: firestoreGetDocs } = await import("firebase/firestore");
+        
+        let results: any[] = [];
+        
+        try {
+          // محاولة جلب النتائج مع orderBy
+          const resultsQuery = firestoreQuery(
+            firestoreCollection(db, "testResults"),
+            firestoreWhere("userId", "==", user.uid),
+            firestoreOrderBy("createdAt", "desc")
+          );
+
+          const resultsSnapshot = await firestoreGetDocs(resultsQuery);
+          results = resultsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+        } catch (error: any) {
+          // إذا فشل query مع orderBy (مثل عدم وجود index)، جرب بدون orderBy
+          if (error?.code === "failed-precondition" || error?.code === "unimplemented") {
+            console.warn("⚠️ Firestore index missing, trying without orderBy:", error);
+            try {
+              const resultsQuery = firestoreQuery(
+                firestoreCollection(db, "testResults"),
+                firestoreWhere("userId", "==", user.uid)
+              );
+
+              const resultsSnapshot = await firestoreGetDocs(resultsQuery);
+              results = resultsSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }));
+              
+              // ترتيب النتائج يدوياً حسب createdAt
+              results.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                return dateB.getTime() - dateA.getTime();
+              });
+            } catch (fallbackError) {
+              console.error("❌ Error loading stats (fallback):", fallbackError);
+              throw fallbackError;
+            }
+          } else {
+            throw error;
+          }
+        }
+        
+        // حساب الإحصائيات
+        const completedTests = results.length;
+        const totalPercentage = results.reduce((sum: number, result: any) => sum + (result.percentage || 0), 0);
+        const averageScore = completedTests > 0 ? Math.round(totalPercentage / completedTests) : 0;
+        
+        console.log("📊 الإحصائيات المحملة:", {
+          completedTests,
+          averageScore,
+          resultsCount: results.length,
+          userLevel: user.level,
+        });
+        
+        // تحديث الإحصائيات
+        setUserStats({
+          completedTests,
+          averageScore,
+          level: user.level || "مبتدئ",
+          levelScore: user.levelScore || 0,
+        });
+      } catch (error: any) {
+        console.error("❌ Error loading stats:", error);
+        console.error("❌ Error details:", {
+          code: error?.code,
+          message: error?.message,
+          userId: user?.uid,
+        });
+        // في حالة الخطأ، استخدم البيانات من user object
+        setUserStats({
+          completedTests: user.completedTests || 0,
+          averageScore: user.averageScore || 0,
+          level: user.level || "مبتدئ",
+          levelScore: user.levelScore || 0,
+        });
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    if (user?.uid && db) {
+      loadStats();
+    }
+  }, [user?.uid, db, user?.level, user?.levelScore, user?.averageScore, user?.completedTests]);
 
   // جلب الرسائل المرسلة من المستخدم
   useEffect(() => {
@@ -195,25 +308,19 @@ export default function ProfilePage() {
     {
       icon: BookOpen,
       label: "الاختبارات المكتملة",
-      value: "12",
+      value: loadingStats ? "..." : userStats.completedTests.toString(),
       color: "text-primary-DEFAULT",
     },
     {
       icon: Award,
       label: "المعدل العام",
-      value: "85%",
-      color: "text-primary-DEFAULT",
-    },
-    {
-      icon: Clock,
-      label: "ساعات التعلم",
-      value: "45",
+      value: loadingStats ? "..." : `${userStats.averageScore}%`,
       color: "text-primary-DEFAULT",
     },
     {
       icon: TrendingUp,
       label: "المستوى",
-      value: "متوسط",
+      value: loadingStats ? "..." : userStats.level,
       color: "text-primary-DEFAULT",
     },
   ];

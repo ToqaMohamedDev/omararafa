@@ -8,28 +8,21 @@ service cloud.firestore {
     // دوال مساعدة (Helper Functions)
     // ---------------------------------------------------------
 
+    // التحقق من صحة الاشتراك
     function hasValidSubscription(requiredLevelId) {
-      // إذا لم يكن requiredLevelId موجوداً، نرفض الوصول
-      if (requiredLevelId == null || requiredLevelId == "") {
-        return false;
-      }
-      
-      let subPath = /databases/$(database)/documents/subscriptions/$(request.auth.uid);
-      
-      // التحقق من وجود الاشتراك أولاً
-      if (!exists(subPath)) {
-        return false;
-      }
-      
-      let subscription = get(subPath).data;
-      
-      // التحقق من أن الاشتراك نشط وأن educationalLevelId متطابق
-      return request.auth != null &&
-             subscription.endsAt > request.time &&
-             subscription.educationalLevelId != null &&
-             subscription.educationalLevelId == requiredLevelId;
+      return requiredLevelId != null && 
+             requiredLevelId != "" &&
+             request.auth != null &&
+             // التحقق من وجود وثيقة الاشتراك
+             exists(/databases/$(database)/documents/subscriptions/$(request.auth.uid)) &&
+             // التحقق من تاريخ الانتهاء
+             get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.endsAt > request.time &&
+             // التحقق من وجود حقل الليفل ومطابقته
+             get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.educationalLevelId != null &&
+             get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.educationalLevelId == requiredLevelId;
     }
 
+    // التحقق من أن المستخدم أدمن
     function isAdmin() {
       return request.auth != null &&
              exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
@@ -51,19 +44,20 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
     }
 
+    // -----------------------
+    // Videos Rules
+    // -----------------------
     match /videos/{videoId} {
-      // السماح بالقراءة للجميع عشان يشوفوا عنوان الفيديو وصورته
       allow read: if true; 
       allow write: if isAdmin();
 
-      // حماية رابط الفيديو (المصدر)
       match /private/source {
-        // هنا بنجيب بيانات الفيديو الأب (Parent) عشان نعرف هو تبع أي مرحلة دراسية
-        // نتحقق من وجود الفيديو وأنه يحتوي على educationalLevelId
+        // التحقق من وجود الفيديو وأنه يحتوي على level (ID المرحلة التعليمية)
         allow read: if request.auth != null && 
                        exists(/databases/$(database)/documents/videos/$(videoId)) &&
-                       get(/databases/$(database)/documents/videos/$(videoId)).data.educationalLevelId != null &&
-                       hasValidSubscription(get(/databases/$(database)/documents/videos/$(videoId)).data.educationalLevelId);
+                       get(/databases/$(database)/documents/videos/$(videoId)).data.level != null &&
+                       get(/databases/$(database)/documents/videos/$(videoId)).data.level != "" &&
+                       hasValidSubscription(get(/databases/$(database)/documents/videos/$(videoId)).data.level);
         allow write: if isAdmin();
       }
     }
@@ -74,23 +68,23 @@ service cloud.firestore {
     }
     
     match /subscriptions/{subscriptionId} {
-      // المستخدم يشوف اشتراكه بس، والأدمن يشوف الكل
-      // ملاحظة: subscriptionId هنا هو userId (لأن document ID = userId)
       allow read: if request.auth != null && (subscriptionId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
     
+    // -----------------------
+    // Tests Rules
+    // -----------------------
     match /tests/{testId} {
       allow read: if true; 
       allow write: if isAdmin();
 
-      // حماية محتوى الامتحان
       match /private/content {
-        // نفس الفكرة: بنجيب بيانات الامتحان عشان نقارن المرحلة الدراسية
-        // نتحقق من وجود الاختبار وأنه يحتوي على level (ID المرحلة التعليمية)
+        // التحقق من وجود الاختبار وأنه يحتوي على level (ID المرحلة التعليمية)
         allow read: if request.auth != null && 
                        exists(/databases/$(database)/documents/tests/$(testId)) &&
                        get(/databases/$(database)/documents/tests/$(testId)).data.level != null &&
+                       get(/databases/$(database)/documents/tests/$(testId)).data.level != "" &&
                        hasValidSubscription(get(/databases/$(database)/documents/tests/$(testId)).data.level);
         allow write: if isAdmin();
       }
@@ -106,21 +100,51 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /courses/{document=**} {
-      allow read: if request.auth != null;
+    // -----------------------
+    // Courses Rules
+    // -----------------------
+    match /courses/{courseId} {
+      allow read: if request.auth != null; 
       allow write: if isAdmin();
+
+      match /private/source {
+        // التحقق من وجود الكورس وأنه يحتوي على level (ID المرحلة التعليمية)
+        allow read: if request.auth != null && 
+                       exists(/databases/$(database)/documents/courses/$(courseId)) &&
+                       get(/databases/$(database)/documents/courses/$(courseId)).data.level != null &&
+                       get(/databases/$(database)/documents/courses/$(courseId)).data.level != "" &&
+                       hasValidSubscription(get(/databases/$(database)/documents/courses/$(courseId)).data.level);
+        allow write: if isAdmin();
+      }
     }
 
-    // قواعد الرسائل (الشكاوي)
     match /messages/{messageId} {
-      // المستخدم يمكنه قراءة رسائله فقط (بناءً على userId أو userEmail)
       allow read: if request.auth != null && 
-                      (resource.data.userId == request.auth.uid || 
-                       resource.data.userEmail == request.auth.token.email ||
-                       isAdmin());
-      // أي شخص يمكنه إنشاء رسالة (حتى غير المسجلين)
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.userEmail == request.auth.token.email ||
+                      isAdmin());
       allow create: if true;
-      // الأدمن فقط يمكنه تحديث/حذف الرسائل
+      allow update, delete: if isAdmin();
+    }
+
+    // -----------------------
+    // Test Results Rules
+    // -----------------------
+    match /testResults/{resultId} {
+      // المستخدم يمكنه قراءة نتائجه فقط
+      allow read: if request.auth != null && 
+                     resource.data != null &&
+                     resource.data.userId == request.auth.uid;
+      
+      // المستخدم يمكنه إنشاء نتيجة اختبار لنفسه فقط
+      allow create: if request.auth != null &&
+                       request.resource.data != null &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.testId != null &&
+                       request.resource.data.score != null &&
+                       request.resource.data.percentage != null;
+      
+      // الأدمن فقط يمكنه تحديث/حذف النتائج
       allow update, delete: if isAdmin();
     }
 
@@ -128,7 +152,6 @@ service cloud.firestore {
     // قفل باقي قاعدة البيانات (هام جداً للأمان)
     // ---------------------------------------------------------
     match /{document=**} {
-      // تم التغيير إلى false لمنع أي وصول غير مصرح به
       allow read, write: if false; 
     }
   }

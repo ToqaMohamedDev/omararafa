@@ -614,11 +614,11 @@ export default function CoursesPage() {
                     </div>
 
                     <div className="p-6">
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <h2 className="text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                          {course.title}
-                        </h2>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h2 className="text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                            {course.title}
+                          </h2>
                           {course.rating !== undefined && course.rating > 0 && (
                             <motion.div
                               className="flex items-center gap-1 text-primary-600 dark:text-primary-400"
@@ -628,9 +628,6 @@ export default function CoursesPage() {
                               <span className="font-semibold">{course.rating}</span>
                             </motion.div>
                           )}
-                          <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap">
-                            {course.level}
-                          </span>
                         </div>
                       </div>
 
@@ -740,11 +737,11 @@ export default function CoursesPage() {
             </div>
 
             <div className="p-6">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <h2 className="text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                  {course.title}
-                </h2>
-                <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-2xl font-bold flex-1 text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                    {course.title}
+                  </h2>
                   {course.rating !== undefined && course.rating > 0 && (
                     <motion.div
                       className="flex items-center gap-1 text-primary-600 dark:text-primary-400"
@@ -754,9 +751,6 @@ export default function CoursesPage() {
                       <span className="font-semibold">{course.rating}</span>
                     </motion.div>
                   )}
-                  <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap">
-                    {course.level}
-                  </span>
                 </div>
               </div>
 

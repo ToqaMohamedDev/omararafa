@@ -15,6 +15,10 @@ interface User {
   birthDate?: string;
   educationalLevelId?: string;
   educationalLevel?: string;
+  level?: string;
+  levelScore?: number;
+  averageScore?: number;
+  completedTests?: number;
 }
 
 interface SessionContextType {
@@ -49,6 +53,10 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
             birthDate: userData.birthDate || "",
             educationalLevelId: userData.educationalLevelId || "",
             educationalLevel: userData.educationalLevel || "",
+            level: userData.level || "مبتدئ",
+            levelScore: userData.levelScore || 0,
+            averageScore: userData.averageScore || 0,
+            completedTests: userData.completedTests || 0,
           };
         }
       } catch (firestoreError) {
@@ -66,6 +74,10 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
       birthDate: "",
       educationalLevelId: "",
       educationalLevel: "",
+      level: "مبتدئ",
+      levelScore: 0,
+      averageScore: 0,
+      completedTests: 0,
     };
   } catch (error) {
     console.error("Error verifying user:", error);
@@ -79,6 +91,10 @@ const verifyUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
       birthDate: "",
       educationalLevelId: "",
       educationalLevel: "",
+      level: "مبتدئ",
+      levelScore: 0,
+      averageScore: 0,
+      completedTests: 0,
     };
   }
 };

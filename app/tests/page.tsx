@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useSession } from "@/hooks/useSession";
-import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Play, Phone, AlertCircle, GraduationCap } from "lucide-react";
+import { Clock, FileText, Award, CheckCircle, XCircle, ArrowRight, ArrowLeft, Play, Phone, AlertCircle, GraduationCap, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase-client";
-import { collection, getDocs, doc, getDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, orderBy, addDoc, serverTimestamp, where, updateDoc } from "firebase/firestore";
 import { TestCardSkeleton } from "@/components/Skeleton";
 
 // WhatsApp Icon Component
@@ -52,17 +52,24 @@ export default function TestsPage() {
   const [educationalLevels, setEducationalLevels] = useState<Array<{ id: string; name: string; imageUrl?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [showMessage, setShowMessage] = useState<{ type: "subscription" | "contact" | "login"; show: boolean }>({ type: "subscription", show: false });
+  const [showMessage, setShowMessage] = useState<{ type: "subscription" | "contact" | "login" | "alreadyCompleted"; show: boolean }>({ type: "subscription", show: false });
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null); // الوقت المتبقي بالثواني
+  const [timerStarted, setTimerStarted] = useState(false);
+  const [completedTestIds, setCompletedTestIds] = useState<Set<string>>(new Set()); // مجموعة معرفات الاختبارات المكتملة
+  const [completedTestResults, setCompletedTestResults] = useState<Map<string, { score: number; percentage: number; totalQuestions: number; answers: { [key: number]: number }; createdAt: any }>>(new Map()); // نتائج الاختبارات المكتملة
+  const [selectedCompletedTestId, setSelectedCompletedTestId] = useState<string | null>(null); // الاختبار المكتمل المحدد لعرض نتيجته
 
-  // التحقق من الاشتراك
+  // التحقق من الاشتراك وجلب الاختبارات المكتملة
   useEffect(() => {
-    const checkSubscription = async () => {
+    const checkSubscriptionAndCompletedTests = async () => {
       if (!isAuthenticated || !user?.uid || !db) {
         setHasSubscription(false);
+        setCompletedTestIds(new Set());
         return;
       }
 
       try {
+        // التحقق من الاشتراك
         const subscriptionRef = doc(db, "subscriptions", user.uid);
         const subscriptionDoc = await getDoc(subscriptionRef);
         
@@ -75,14 +82,51 @@ export default function TestsPage() {
         } else {
           setHasSubscription(false);
         }
+
+        // جلب الاختبارات المكتملة والنتائج
+        try {
+          const resultsQuery = query(
+            collection(db, "testResults"),
+            where("userId", "==", user.uid)
+          );
+          const resultsSnapshot = await getDocs(resultsQuery);
+          const completedIds = new Set<string>();
+          const resultsMap = new Map<string, { score: number; percentage: number; totalQuestions: number; answers: { [key: number]: number }; createdAt: any }>();
+          
+          resultsSnapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            if (data.testId) {
+              completedIds.add(data.testId);
+              // حفظ النتيجة
+              resultsMap.set(data.testId, {
+                score: data.score || 0,
+                percentage: data.percentage || 0,
+                totalQuestions: data.totalQuestions || 0,
+                answers: data.answers || {},
+                createdAt: data.createdAt
+              });
+            }
+          });
+          
+          setCompletedTestIds(completedIds);
+          setCompletedTestResults(resultsMap);
+          console.log("✅ الاختبارات المكتملة:", Array.from(completedIds));
+          console.log("✅ نتائج الاختبارات:", Array.from(resultsMap.entries()));
+        } catch (error: any) {
+          // إذا فشل query (مثل عدم وجود index)، لا نمنع المستخدم
+          console.warn("⚠️ لا يمكن جلب الاختبارات المكتملة:", error);
+          setCompletedTestIds(new Set());
+          setCompletedTestResults(new Map());
+        }
       } catch (error) {
         console.error("❌ Error checking subscription:", error);
         setHasSubscription(false);
+        setCompletedTestIds(new Set());
       }
     };
 
-    checkSubscription();
-  }, [isAuthenticated, user?.uid]);
+    checkSubscriptionAndCompletedTests();
+  }, [isAuthenticated, user?.uid, db]);
 
   // جلب المراحل التعليمية
   useEffect(() => {
@@ -248,23 +292,81 @@ export default function TestsPage() {
     } else {
       setShowResults(true);
       
-      // حفظ النتيجة في Firebase
-      if (user?.uid && selectedTest && currentTest) {
+      // حفظ النتيجة في Firebase مباشرة
+      if (user?.uid && selectedTest && currentTest && db) {
         const score = calculateScore();
         try {
-          await fetch("/api/tests/results", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userId: user.uid,
-              testId: selectedTest,
-              score: score.correct,
-              percentage: score.percentage,
-              answers: answers,
-            }),
+          // حفظ النتيجة
+          await addDoc(collection(db, "testResults"), {
+            userId: user.uid,
+            testId: selectedTest,
+            score: score.correct,
+            percentage: score.percentage,
+            totalQuestions: score.total,
+            answers: answers,
+            createdAt: serverTimestamp(),
           });
+
+          // إضافة الاختبار إلى قائمة الاختبارات المكتملة
+          setCompletedTestIds((prev) => {
+            const newSet = new Set(prev);
+            if (selectedTest) {
+              newSet.add(selectedTest);
+            }
+            return newSet;
+          });
+
+          // حساب المستوى الجديد بناءً على جميع النتائج
+          const resultsQuery = query(
+            collection(db, "testResults"),
+            where("userId", "==", user.uid),
+            orderBy("createdAt", "desc")
+          );
+
+          const resultsSnapshot = await getDocs(resultsQuery);
+          const results = resultsSnapshot.docs.map((doc) => doc.data());
+
+          if (results.length > 0) {
+            // حساب المعدل العام
+            const totalPercentage = results.reduce((sum, result) => sum + (result.percentage || 0), 0);
+            const averagePercentage = Math.round(totalPercentage / results.length);
+            const completedTests = results.length;
+
+            // تحديد المستوى
+            let level = "مبتدئ";
+            let levelScore = 0;
+
+            if (completedTests >= 20 && averagePercentage >= 90) {
+              level = "ممتاز";
+              levelScore = 5;
+            } else if (completedTests >= 15 && averagePercentage >= 80) {
+              level = "متقدم";
+              levelScore = 4;
+            } else if (completedTests >= 10 && averagePercentage >= 70) {
+              level = "متوسط";
+              levelScore = 3;
+            } else if (completedTests >= 5 && averagePercentage >= 60) {
+              level = "مبتدئ متقدم";
+              levelScore = 2;
+            } else {
+              level = "مبتدئ";
+              levelScore = 1;
+            }
+
+            // تحديث مستوى المستخدم
+            const userRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userRef);
+
+            if (userDoc.exists()) {
+              await updateDoc(userRef, {
+                level: level,
+                levelScore: levelScore,
+                averageScore: averagePercentage,
+                completedTests: completedTests,
+                updatedAt: serverTimestamp(),
+              });
+            }
+          }
         } catch (error) {
           console.error("Error saving test result:", error);
         }
@@ -298,7 +400,142 @@ export default function TestsPage() {
     setShowResults(false);
     setTestStarted(false);
     setCurrentTestData(null); // إعادة تعيين currentTestData
+    setTimeRemaining(null);
+    setTimerStarted(false);
   };
+
+  // دالة لتحويل duration string إلى ثواني
+  const parseDurationToSeconds = (duration: string): number => {
+    // تنسيقات محتملة: "30 دقيقة", "30 د", "1 ساعة", "1 س", "45 دقيقة"
+    const match = duration.match(/(\d+)/);
+    if (match) {
+      const value = parseInt(match[1]);
+      if (duration.includes("ساعة") || duration.includes("س")) {
+        return value * 60 * 60; // تحويل الساعات إلى ثواني
+      } else if (duration.includes("دقيقة") || duration.includes("د")) {
+        return value * 60; // تحويل الدقائق إلى ثواني
+      }
+      // افتراض أن القيمة بالدقائق إذا لم يذكر
+      return value * 60;
+    }
+    // افتراضي: 30 دقيقة
+    return 30 * 60;
+  };
+
+  // مؤقت الاختبار
+  useEffect(() => {
+    if (!testStarted || !currentTest || !timerStarted || timeRemaining === null) {
+      return;
+    }
+
+    if (timeRemaining <= 0) {
+      // انتهى الوقت - إنهاء الاختبار تلقائياً
+      setShowResults(true);
+      setTimerStarted(false);
+      
+      // حفظ النتيجة
+      if (user?.uid && selectedTest && currentTest && db) {
+        const score = calculateScore();
+        try {
+          if (!db) return;
+          addDoc(collection(db, "testResults"), {
+            userId: user.uid,
+            testId: selectedTest,
+            score: score.correct,
+            percentage: score.percentage,
+            totalQuestions: score.total,
+            answers: answers,
+            createdAt: serverTimestamp(),
+          }).then(() => {
+            // إضافة الاختبار إلى قائمة الاختبارات المكتملة
+            if (selectedTest) {
+              setCompletedTestIds((prev) => {
+                const newSet = new Set(prev);
+                newSet.add(selectedTest);
+                return newSet;
+              });
+            }
+
+            // حساب المستوى بعد حفظ النتيجة
+            if (!db || !user?.uid) return;
+            
+            const resultsQuery = query(
+              collection(db, "testResults"),
+              where("userId", "==", user.uid),
+              orderBy("createdAt", "desc")
+            );
+
+            getDocs(resultsQuery).then((resultsSnapshot) => {
+              const results = resultsSnapshot.docs.map((doc) => doc.data());
+
+              if (results.length > 0 && db && user?.uid) {
+                const totalPercentage = results.reduce((sum, result) => sum + (result.percentage || 0), 0);
+                const averagePercentage = Math.round(totalPercentage / results.length);
+                const completedTests = results.length;
+
+                let level = "مبتدئ";
+                let levelScore = 0;
+
+                if (completedTests >= 20 && averagePercentage >= 90) {
+                  level = "ممتاز";
+                  levelScore = 5;
+                } else if (completedTests >= 15 && averagePercentage >= 80) {
+                  level = "متقدم";
+                  levelScore = 4;
+                } else if (completedTests >= 10 && averagePercentage >= 70) {
+                  level = "متوسط";
+                  levelScore = 3;
+                } else if (completedTests >= 5 && averagePercentage >= 60) {
+                  level = "مبتدئ متقدم";
+                  levelScore = 2;
+                } else {
+                  level = "مبتدئ";
+                  levelScore = 1;
+                }
+
+                const userRef = doc(db, "users", user.uid);
+                getDoc(userRef).then((userDoc) => {
+                  if (userDoc.exists()) {
+                    updateDoc(userRef, {
+                      level: level,
+                      levelScore: levelScore,
+                      averageScore: averagePercentage,
+                      completedTests: completedTests,
+                      updatedAt: serverTimestamp(),
+                    });
+                  }
+                });
+              }
+            });
+          });
+        } catch (error) {
+          console.error("Error saving test result:", error);
+        }
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null || prev <= 0) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [testStarted, currentTest, timerStarted, timeRemaining, user?.uid, selectedTest, db, answers]);
+
+  // بدء المؤقت عند بدء الاختبار
+  useEffect(() => {
+    if (testStarted && currentTest && !timerStarted) {
+      const durationInSeconds = parseDurationToSeconds(currentTest.duration);
+      setTimeRemaining(durationInSeconds);
+      setTimerStarted(true);
+    }
+  }, [testStarted, currentTest, timerStarted]);
 
   // إظهار loading أثناء تحميل session
   if (sessionLoading) {
@@ -480,9 +717,32 @@ export default function TestsPage() {
               <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 السؤال {currentQuestion + 1} من {currentTest.questionsData?.length || 0}
               </span>
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                {currentTest.title}
-              </span>
+              <div className="flex items-center gap-4">
+                {/* المؤقت */}
+                {timeRemaining !== null && (
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold ${
+                    timeRemaining <= 60 
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 animate-pulse"
+                      : timeRemaining <= 300
+                      ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                      : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                  }`}>
+                    <Clock className={`w-4 h-4 ${
+                      timeRemaining <= 60 
+                        ? "text-red-600 dark:text-red-400"
+                        : timeRemaining <= 300
+                        ? "text-orange-600 dark:text-orange-400"
+                        : "text-blue-600 dark:text-blue-400"
+                    }`} />
+                    <span>
+                      {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {currentTest.title}
+                </span>
+              </div>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <motion.div
@@ -636,6 +896,148 @@ export default function TestsPage() {
             : "اختر الاختبار الذي تريد أداءه واختبر معرفتك في اللغة العربية"}
         </p>
       </motion.div>
+
+      {/* بنر النتيجة للاختبار المكتمل */}
+      <AnimatePresence>
+        {selectedCompletedTestId && completedTestResults.has(selectedCompletedTestId) && currentTestData && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ duration: 0.5, type: "spring" }}
+            className="mb-8"
+          >
+            {(() => {
+              const result = completedTestResults.get(selectedCompletedTestId)!;
+              const test = tests.find(t => t.id === selectedCompletedTestId);
+              const percentage = result.percentage;
+              
+              return (
+                <div className={`rounded-2xl shadow-2xl overflow-hidden border-2 ${
+                  percentage >= 70
+                    ? "bg-gradient-to-r from-green-500 via-green-600 to-green-700 border-green-400"
+                    : percentage >= 50
+                    ? "bg-gradient-to-r from-yellow-500 via-yellow-600 to-yellow-700 border-yellow-400"
+                    : "bg-gradient-to-r from-red-500 via-red-600 to-red-700 border-red-400"
+                }`}>
+                  <div className="p-6 md:p-8 relative">
+                    {/* زر الإغلاق */}
+                    <motion.button
+                      onClick={() => {
+                        setSelectedCompletedTestId(null);
+                        setCurrentTestData(null);
+                      }}
+                      className="absolute top-4 left-4 bg-white/20 hover:bg-white/30 text-white rounded-full p-2 transition-all backdrop-blur-sm z-10"
+                      whileHover={{ scale: 1.1, rotate: 90 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <X className="w-5 h-5" />
+                    </motion.button>
+
+                    <div className="flex items-center justify-between gap-4 flex-wrap pr-12">
+                      <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", delay: 0.2 }}
+                          className="bg-white/20 dark:bg-white/10 rounded-full p-4 backdrop-blur-sm"
+                        >
+                          <Award className="w-8 h-8 md:w-10 md:h-10 text-white" />
+                        </motion.div>
+                        <div className="flex-1">
+                          <h3 className="text-xl md:text-2xl font-bold text-white mb-1">
+                            نتيجة الاختبار
+                          </h3>
+                          <p className="text-white/90 text-sm md:text-base">
+                            {test?.title || currentTestData?.title || "اختبار"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6 flex-wrap">
+                        <div className="text-center">
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", delay: 0.3 }}
+                            className="text-4xl md:text-5xl font-bold text-white mb-1"
+                          >
+                            {percentage}%
+                          </motion.div>
+                          <p className="text-white/90 text-sm md:text-base">
+                            {result.score} من {result.totalQuestions} صحيح
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* التفاصيل الكاملة */}
+                  {currentTestData?.questionsData && currentTestData.questionsData.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-white dark:bg-gray-800 border-t-2 border-white/20"
+                    >
+                      <div className="p-6 md:p-8 max-h-[600px] overflow-y-auto">
+                        <h4 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                          تفاصيل الإجابات
+                        </h4>
+                        <div className="space-y-4">
+                          {currentTestData.questionsData.map((q, index) => {
+                            const userAnswer = result.answers[index];
+                            const isCorrect = userAnswer === q.correctAnswer;
+                            return (
+                              <motion.div
+                                key={q.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className={`p-4 rounded-lg border-2 ${
+                                  isCorrect
+                                    ? "bg-green-50 dark:bg-green-900/20 border-green-500"
+                                    : "bg-red-50 dark:bg-red-900/20 border-red-500"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  {isCorrect ? (
+                                    <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-1" />
+                                  ) : (
+                                    <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-1" />
+                                  )}
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-gray-900 dark:text-white mb-2">
+                                      {index + 1}. {q.question}
+                                    </p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                      <span className="font-semibold">إجابتك:</span> {q.options[userAnswer]}
+                                    </p>
+                                    {!isCorrect && (
+                                      <p className="text-sm text-green-600 dark:text-green-400 mb-2">
+                                        <span className="font-semibold">الإجابة الصحيحة:</span> {q.options[q.correctAnswer]}
+                                      </p>
+                                    )}
+                                    {q.explanation && (
+                                      <p className="text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded text-gray-700 dark:text-gray-300 mt-2">
+                                        <strong>شرح:</strong> {q.explanation}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* عرض المراحل التعليمية أولاً */}
       {!selectedEducationalLevel && (
@@ -830,6 +1232,31 @@ export default function TestsPage() {
                     return;
                   }
 
+                  // إذا كان الاختبار مكتملاً، عرض النتيجة
+                  if (completedTestIds.has(test.id)) {
+                    setSelectedCompletedTestId(test.id);
+                    // جلب questionsData لعرض التفاصيل
+                    if (db && auth?.currentUser) {
+                      try {
+                        const privateContentRef = doc(db, "tests", test.id, "private", "content");
+                        const privateContentDoc = await getDoc(privateContentRef);
+                        if (privateContentDoc.exists()) {
+                          const data = privateContentDoc.data();
+                          const testQuestionsData = data.questionsData || [];
+                          const updatedTest = {
+                            ...test,
+                            questionsData: testQuestionsData,
+                            questions: testQuestionsData.length,
+                          };
+                          setCurrentTestData(updatedTest);
+                        }
+                      } catch (error) {
+                        console.error("❌ خطأ في جلب تفاصيل الاختبار:", error);
+                      }
+                    }
+                    return;
+                  }
+
                   // إذا كان المستخدم غير مشترك، لا نسمح له ببدء الاختبار
                   if (!hasSubscription) {
                     setShowMessage({ type: "subscription", show: true });
@@ -931,12 +1358,25 @@ export default function TestsPage() {
                   setShowResults(false);
                   }
                 }}
-                className="w-full bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 hover:from-primary-700 hover:via-primary-800 hover:to-primary-900 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 group/btn shadow-lg hover:shadow-xl transition-all duration-300"
+                className={`w-full font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 group/btn shadow-lg transition-all duration-300 ${
+                  completedTestIds.has(test.id)
+                    ? "bg-gradient-to-r from-green-600 via-green-700 to-green-800 hover:from-green-700 hover:via-green-800 hover:to-green-900 text-white hover:shadow-xl cursor-pointer"
+                    : "bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 hover:from-primary-700 hover:via-primary-800 hover:to-primary-900 text-white hover:shadow-xl"
+                }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Play className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                بدء الاختبار
+                {completedTestIds.has(test.id) ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    تم إكمال الاختبار
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                    بدء الاختبار
+                  </>
+                )}
               </motion.button>
             </motion.div>
               );
@@ -1072,6 +1512,50 @@ export default function TestsPage() {
                     className="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
                   >
                     إغلاق
+                  </button>
+                </>
+              )}
+
+              {showMessage.type === "alreadyCompleted" && (
+                <>
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-4">
+                      <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-center mb-3 text-gray-900 dark:text-white">
+                    تم إكمال الاختبار
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-center mb-6 leading-relaxed">
+                    لقد قمت بحل هذا الاختبار من قبل. لا يمكن حل نفس الاختبار أكثر من مرة.
+                  </p>
+                  <button
+                    onClick={() => setShowMessage({ type: "alreadyCompleted", show: false })}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-lg hover:shadow-xl"
+                  >
+                    فهمت
+                  </button>
+                </>
+              )}
+
+              {showMessage.type === "alreadyCompleted" && (
+                <>
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-4">
+                      <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-center mb-3 text-gray-900 dark:text-white">
+                    تم إكمال الاختبار
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-center mb-6 leading-relaxed">
+                    لقد قمت بحل هذا الاختبار من قبل. لا يمكن حل نفس الاختبار أكثر من مرة.
+                  </p>
+                  <button
+                    onClick={() => setShowMessage({ type: "alreadyCompleted", show: false })}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-lg hover:shadow-xl"
+                  >
+                    فهمت
                   </button>
                 </>
               )}

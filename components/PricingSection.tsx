@@ -250,15 +250,9 @@ export default function PricingSection() {
                 whileHover={{ y: -8, scale: 1.03 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <h4 className="text-xl font-bold mb-3 text-gray-900 dark:text-white group-hover:text-primary-DEFAULT transition-colors">
+                <h4 className="text-xl font-bold mb-4 text-gray-900 dark:text-white group-hover:text-primary-DEFAULT transition-colors">
                   {course.title}
                 </h4>
-                <div className="space-y-2 mb-4 text-sm text-gray-600 dark:text-gray-400">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    <span>{course.level}</span>
-                  </div>
-                </div>
                 <motion.button
                   type="button"
                   className="w-full btn-secondary py-2.5 text-sm"

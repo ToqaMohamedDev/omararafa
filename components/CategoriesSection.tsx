@@ -41,7 +41,41 @@ export default function CategoriesSection() {
           }
         }
 
-        // تحويل التصنيفات إلى التنسيق المطلوب
+        // جلب جميع الفيديوهات لحساب عدد الفيديوهات لكل تصنيف
+        let videosData: Array<{ category?: string }> = [];
+        if (db) {
+          try {
+            // محاولة جلب الفيديوهات من API أولاً
+            const videosRes = await fetch("/api/videos");
+            if (videosRes.ok) {
+              const apiVideosData = await videosRes.json();
+              videosData = apiVideosData.videos || [];
+            }
+
+            // إذا كان API يعيد بيانات فارغة، استخدم Firebase Client SDK مباشرة
+            if (videosData.length === 0) {
+              const videosQuery = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+              const videosSnapshot = await getDocs(videosQuery);
+              videosData = videosSnapshot.docs.map((doc) => ({
+                ...doc.data(),
+                id: doc.id,
+              }));
+            }
+          } catch (videosError) {
+            console.error("Error fetching videos:", videosError);
+          }
+        }
+
+        // حساب عدد الفيديوهات لكل تصنيف
+        const categoryVideoCounts = new Map<string, number>();
+        videosData.forEach((video) => {
+          if (video.category) {
+            const currentCount = categoryVideoCounts.get(video.category) || 0;
+            categoryVideoCounts.set(video.category, currentCount + 1);
+          }
+        });
+
+        // تحويل التصنيفات إلى التنسيق المطلوب مع عدد الفيديوهات
         const icons = ["📖", "✨", "📜", "📝", "📚", "🎓", "✍️"];
         const colors = [
           "from-primary-400 to-primary-600",
@@ -55,7 +89,7 @@ export default function CategoriesSection() {
           description: `استكشف محتوى ${cat.name} التعليمي`,
           icon: icons[index % icons.length],
           color: colors[index % colors.length],
-          count: 0, // يمكن إضافة count لاحقاً
+          count: categoryVideoCounts.get(cat.id) || 0, // عدد الفيديوهات الفعلي لكل تصنيف
         }));
 
         // إذا لم يكن هناك تصنيفات، استخدم البيانات الافتراضية
@@ -146,7 +180,7 @@ export default function CategoriesSection() {
     };
 
     fetchCategories();
-  }, []);
+  }, [db]);
 
   const containerVariants = {
     hidden: { opacity: 0 },

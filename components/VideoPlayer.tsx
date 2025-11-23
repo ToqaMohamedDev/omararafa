@@ -217,7 +217,8 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative w-full max-w-6xl bg-gradient-to-br from-gray-950 via-black to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+          className="relative w-full max-w-6xl mx-auto bg-gradient-to-br from-gray-950 via-black to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+          style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         >
           {/* Title */}
           {title && !isFullscreen && (
@@ -238,7 +239,7 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
           )}
 
           {/* Video Container */}
-          <div className="relative aspect-video bg-black">
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9', maxHeight: '90vh' }}>
             {!hasValidUrl ? (
               <div className="absolute inset-0 flex items-center justify-center text-white bg-gradient-to-br from-gray-900 via-black to-gray-900">
                 <div className="text-center px-8 max-w-2xl">
@@ -300,15 +301,16 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                 {/* Video */}
                 <video
                   ref={videoRef}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full"
                   poster={thumbnailUrl}
                   playsInline
                   onClick={togglePlay}
                   onContextMenu={(e) => e.preventDefault()}
                   style={{
-                    objectFit: 'cover',
+                    objectFit: 'contain',
                     width: '100%',
-                    height: '100%'
+                    height: '100%',
+                    display: 'block'
                   }}
                 >
                   <source src={finalVideoUrl} type="video/mp4" />
@@ -322,7 +324,7 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                     className="absolute inset-0 z-0"
                     style={{
                       backgroundImage: `url(${thumbnailUrl})`,
-                      backgroundSize: 'cover',
+                      backgroundSize: 'contain',
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat',
                       width: '100%',

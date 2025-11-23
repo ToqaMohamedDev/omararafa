@@ -745,14 +745,11 @@ export default function VideoSection() {
                         )}
                       </div>
 
-                      {/* العنوان والمستوى */}
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="text-lg font-bold flex-1 text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
+                      {/* العنوان */}
+                      <div className="mb-2">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
                           {video.title}
                         </h3>
-                        <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
-                          {video.level}
-                        </span>
                       </div>
 
                       {/* الوصف */}
@@ -912,14 +909,11 @@ export default function VideoSection() {
                         )}
                       </div>
 
-                      {/* العنوان والمستوى */}
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="text-lg font-bold flex-1 text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
+                      {/* العنوان */}
+                      <div className="mb-2">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300 leading-tight">
                           {video.title}
                         </h3>
-                        <span className="bg-primary-600 dark:bg-primary-700 text-white px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap flex-shrink-0">
-                          {video.level}
-                        </span>
                       </div>
 
                       {/* الوصف */}
@@ -945,7 +939,7 @@ export default function VideoSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50"
+            className="fixed inset-0 z-50 flex items-center justify-center"
           >
             <VideoPlayer
               videoUrl={selectedVideo.videoUrl}
