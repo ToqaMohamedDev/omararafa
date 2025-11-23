@@ -221,14 +221,14 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
           style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         >
           {/* Title */}
-          {title && !isFullscreen && (
+          {title && !isFullscreen && !isPlaying && (
             <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent p-2 sm:p-4 md:p-6 pr-10 sm:pr-16 md:pr-20">
               <h3 className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold text-white line-clamp-2">{title}</h3>
             </div>
           )}
 
           {/* Close Button */}
-          {onClose && !isFullscreen && (
+          {onClose && !isFullscreen && !isPlaying && (
             <button
               onClick={onClose}
               className="absolute top-2 right-2 sm:top-4 sm:right-4 md:top-6 md:right-6 z-[100] bg-white/10 hover:bg-red-500/90 text-white rounded-lg sm:rounded-xl p-1.5 sm:p-2 md:p-2.5 transition-all duration-300 backdrop-blur-lg border border-white/20 hover:scale-110 hover:rotate-90 shadow-lg hover:shadow-red-500/50"
@@ -317,54 +317,10 @@ export default function VideoPlayer({ videoUrl, title, thumbnailUrl, onClose, di
                   المتصفح الخاص بك لا يدعم تشغيل الفيديو.
                 </video>
 
-                {/* Play Button Overlay */}
-                {!isPlaying && !loading && (
-                  <div
-                    onClick={togglePlay}
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 cursor-pointer group"
-                    style={{ 
-                      transform: 'translate(calc(-50% - 2px), calc(-50% - 2px))',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translate(calc(-50% - 2px), calc(-50% - 2px)) scale(1.15)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translate(calc(-50% - 2px), calc(-50% - 2px)) scale(1)';
-                    }}
-                    onMouseDown={(e) => {
-                      e.currentTarget.style.transform = 'translate(calc(-50% - 2px), calc(-50% - 2px)) scale(1.05)';
-                    }}
-                    onMouseUp={(e) => {
-                      e.currentTarget.style.transform = 'translate(calc(-50% - 2px), calc(-50% - 2px)) scale(1.15)';
-                    }}
-                  >
-                    <svg
-                      width="72"
-                      height="72"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      style={{
-                        transform: 'translateX(5px)',
-                        filter: 'drop-shadow(0 6px 24px rgba(255, 107, 53, 0.8)) drop-shadow(0 2px 8px rgba(255, 107, 53, 0.4))',
-                        pointerEvents: 'none'
-                      }}
-                    >
-                      <path
-                        d="M8 5v14l11-7z"
-                        fill="#FF6B35"
-                        stroke="#FF6B35"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
 
                 {/* Controls */}
                 <AnimatePresence>
-                  {(showControls || !isPlaying) && (
+                  {!isPlaying && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
