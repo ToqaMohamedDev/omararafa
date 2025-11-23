@@ -290,13 +290,11 @@ export default function TestsPage() {
     if (currentQuestion < (currentTest?.questionsData.length || 0) - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
-      setShowResults(true);
-      
-      // حفظ النتيجة في Firebase مباشرة
+      // حفظ النتيجة في Firebase مباشرة قبل عرض النتائج
       if (user?.uid && selectedTest && currentTest && db) {
         const score = calculateScore();
         try {
-          // حفظ النتيجة
+          // حفظ النتيجة أولاً
           await addDoc(collection(db, "testResults"), {
             userId: user.uid,
             testId: selectedTest,
@@ -367,9 +365,17 @@ export default function TestsPage() {
               });
             }
           }
+          
+          // بعد حفظ النتيجة بنجاح، عرض النتائج
+          setShowResults(true);
         } catch (error) {
           console.error("Error saving test result:", error);
+          // حتى لو فشل الحفظ، عرض النتائج
+          setShowResults(true);
         }
+      } else {
+        // إذا لم يكن المستخدم مسجل دخول، عرض النتائج فقط
+        setShowResults(true);
       }
     }
   };
@@ -430,10 +436,9 @@ export default function TestsPage() {
 
     if (timeRemaining <= 0) {
       // انتهى الوقت - إنهاء الاختبار تلقائياً
-      setShowResults(true);
       setTimerStarted(false);
       
-      // حفظ النتيجة
+      // حفظ النتيجة قبل عرض النتائج
       if (user?.uid && selectedTest && currentTest && db) {
         const score = calculateScore();
         try {
@@ -507,10 +512,22 @@ export default function TestsPage() {
                 });
               }
             });
+            
+            // بعد حفظ النتيجة بنجاح، عرض النتائج
+            setShowResults(true);
+          }).catch((error) => {
+            console.error("Error saving test result:", error);
+            // حتى لو فشل الحفظ، عرض النتائج
+            setShowResults(true);
           });
         } catch (error) {
           console.error("Error saving test result:", error);
+          // حتى لو فشل الحفظ، عرض النتائج
+          setShowResults(true);
         }
+      } else {
+        // إذا لم يكن المستخدم مسجل دخول، عرض النتائج فقط
+        setShowResults(true);
       }
       return;
     }
