@@ -366,8 +366,36 @@ export default function TestsPage() {
             }
           }
           
-          // بعد حفظ النتيجة بنجاح، عرض النتائج
-          setShowResults(true);
+          // تحديث completedTestResults بالنتيجة الجديدة
+          const newResult = {
+            score: score.correct,
+            percentage: score.percentage,
+            totalQuestions: score.total,
+            answers: answers,
+            createdAt: new Date(),
+          };
+          setCompletedTestResults((prev) => {
+            const newMap = new Map(prev);
+            if (selectedTest) {
+              newMap.set(selectedTest, newResult);
+            }
+            return newMap;
+          });
+          
+          // إعادة تعيين حالة الاختبار للعودة إلى قائمة الاختبارات
+          setShowResults(false);
+          setTestStarted(false);
+          setSelectedTest(null);
+          setCurrentQuestion(0);
+          setAnswers({});
+          setCurrentTestData(null);
+          setTimeRemaining(null);
+          setTimerStarted(false);
+          
+          // عرض بنر النتيجة تلقائياً
+          if (selectedTest) {
+            setSelectedCompletedTestId(selectedTest);
+          }
         } catch (error) {
           console.error("Error saving test result:", error);
           // حتى لو فشل الحفظ، عرض النتائج
@@ -513,8 +541,36 @@ export default function TestsPage() {
               }
             });
             
-            // بعد حفظ النتيجة بنجاح، عرض النتائج
-            setShowResults(true);
+            // تحديث completedTestResults بالنتيجة الجديدة
+            const newResult = {
+              score: score.correct,
+              percentage: score.percentage,
+              totalQuestions: score.total,
+              answers: answers,
+              createdAt: new Date(),
+            };
+            setCompletedTestResults((prev) => {
+              const newMap = new Map(prev);
+              if (selectedTest) {
+                newMap.set(selectedTest, newResult);
+              }
+              return newMap;
+            });
+            
+            // إعادة تعيين حالة الاختبار للعودة إلى قائمة الاختبارات
+            setShowResults(false);
+            setTestStarted(false);
+            setSelectedTest(null);
+            setCurrentQuestion(0);
+            setAnswers({});
+            setCurrentTestData(null);
+            setTimeRemaining(null);
+            setTimerStarted(false);
+            
+            // عرض بنر النتيجة تلقائياً
+            if (selectedTest) {
+              setSelectedCompletedTestId(selectedTest);
+            }
           }).catch((error) => {
             console.error("Error saving test result:", error);
             // حتى لو فشل الحفظ، عرض النتائج
