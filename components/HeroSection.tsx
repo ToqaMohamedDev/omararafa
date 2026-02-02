@@ -105,7 +105,7 @@ export default function HeroSection() {
 
       {/* Main Content Container */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 relative z-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-4 items-center min-h-screen py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 items-center min-h-screen py-20">
           
           {/* Text Content - Right Side */}
           <div className="lg:col-span-5 xl:col-span-5 order-2 lg:order-1 text-center lg:text-right">
@@ -133,14 +133,14 @@ export default function HeroSection() {
 
             <motion.h2
               variants={itemVariants}
-              className="text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-bold mb-6"
+              className="text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-bold mb-8 pb-2"
             >
-              <span className="relative">
+              <span className="relative inline-block">
                 <span className="bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 bg-clip-text text-transparent">
                   الأستاذ عمر عرفة
                 </span>
                 <motion.span
-                  className="absolute -bottom-2 right-0 w-full h-1 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                  className="absolute -bottom-1 right-0 w-full h-1 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
                   initial={{ scaleX: 0, originX: 1 }}
                   animate={{ scaleX: 1 }}
                   transition={{ delay: 0.8, duration: 0.6 }}
@@ -151,7 +151,7 @@ export default function HeroSection() {
             {/* Description */}
             <motion.p
               variants={itemVariants}
-              className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-6 leading-relaxed max-w-lg mx-auto lg:mx-0"
+              className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed max-w-lg mx-auto lg:mx-0"
             >
               خبرة <span className="text-primary-600 dark:text-primary-400 font-bold">+9 سنوات</span> في تدريس اللغة العربية بأساليب حديثة ومبتكرة
             </motion.p>
