@@ -257,7 +257,7 @@ export default function HeroSection() {
             className="lg:col-span-7 xl:col-span-7 order-1 lg:order-2 relative flex justify-center lg:justify-end items-center"
             variants={imageVariants}
           >
-            <div className="relative w-full max-w-[500px] lg:max-w-none lg:w-[110%] xl:w-[115%] lg:-ml-8">
+            <div className="relative w-full max-w-[400px] lg:max-w-[450px] xl:max-w-[550px] mx-auto lg:ml-0 lg:mr-auto">
               {/* Glow Effect Behind Image */}
               <div className="absolute inset-0 bg-gradient-to-br from-primary-400/40 via-primary-500/30 to-primary-600/40 rounded-full blur-[80px] scale-75" />
               
